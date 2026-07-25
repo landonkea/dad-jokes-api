@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<!-- ^ This tells the browser: "Hey, this is an HTML5 document."
+     Without this, the browser might guess how to render the page
+     and do weird things. Always put this on line 1. -->
+
+<html lang="en">
+<!-- ^ This is the root of the entire page. Everything else is inside here.
+     lang="en" tells search engines and screen readers (for blind users)
+     that this page is in English. This helps with accessibility and SEO. -->
+
+  <head>
+    <!-- ^ The <head> section holds information ABOUT the page, not the
+         visible content. Think of it like the label on a jar — it tells
+         the browser what's inside before you actually open it. -->
+
+    <meta charset="UTF-8" />
+    <!-- ^ This tells the browser to use UTF-8 character encoding.
+         UTF-8 supports almost every character and emoji in the world.
+         Without this, special characters (like emojis 😂) might show
+         up as garbled text like "Ã©". Always include this. -->
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- ^ This makes the website look good on BOTH phones and computers.
+         width=device-width" means "make the page as wide as the screen."
+         initial-scale=1.0" means "don't zoom in or out when the page loads."
+         Without this, mobile phones would show a tiny, zoomed-out version
+         of the page that you'd have to pinch-to-zoom. -->
+
+    <title>Dad Jokes API - Where Groans Are Gold</title>
+    <!-- ^ This is the text that appears in the browser TAB at the top.
+         It's also what shows up when someone bookmarks the page.
+         It's important for SEO (search engine optimization) too. -->
+
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>😂</text></svg>" />
+    <!-- ^ This sets the FAVICON — the tiny icon you see in the browser tab.
+         Instead of linking to an image file, we're using an inline SVG with
+         a laughing emoji. This is a clever trick to avoid needing a separate
+         .ico image file. The data: prefix means "the image is right here
+         in this URL, don't fetch it from a file." -->
+  </head>
+
+  <body>
+    <!-- ^ The <body> contains everything the user actually SEES on the page. -->
+
+    <div id="root"></div>
+    <!-- ^ This empty div is where React will inject ALL of our app's content.
+         When React starts up, it looks for an element with id="root" and
+         builds the entire user interface inside it. Right now it's empty,
+         but after React loads, this div will be filled with buttons, cards,
+         jokes, and everything else. Think of it as an empty canvas. -->
+
+    <script type="module" src="/src/main.tsx"></script>
+    <!-- ^ This loads our app's main JavaScript file (main.tsx).
+         type="module" tells the browser to treat this as a modern JavaScript
+         module, which lets us use import/export statements (like we use
+         throughout our codebase). Without type="module", imports wouldn't work.
+         src="/src/main.tsx" points to our React app's entry point file. -->
+  </body>
+</html>
