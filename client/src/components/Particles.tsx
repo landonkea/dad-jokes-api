@@ -28,16 +28,11 @@ export const Particles: React.FC = () => {
   const [particles] = useState(() => makeParticles(18));
 
   return (
-    {/* A fixed/absolute positioned container that covers the whole page and holds all particles */}
     <div className="particles-container">
-      {/* Loop through each particle and render a floating emoji span */}
       {particles.map((p) => (
-        {/* A <span> for each particle. The CSS class "particle" applies the floating animation. */}
         <span
-          {/* Unique key so React can efficiently track and update each particle */}
           key={p.id}
           className="particle"
-          {/* Inline styles set each particle's unique random properties */}
           style={{
             left: `${p.left}%`,                   // Horizontal starting position
             animationDuration: `${p.duration}s`,  // How fast this particle floats (longer = slower)
@@ -45,7 +40,6 @@ export const Particles: React.FC = () => {
             fontSize: `${p.size}rem`,              // Random size for visual variety
           }}
         >
-          {/* The actual emoji character that will be displayed and animated */}
           {p.emoji}
         </span>
       ))}
