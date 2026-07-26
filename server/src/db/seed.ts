@@ -1,11 +1,5 @@
-// We need the Pool class from "pg" to connect to PostgreSQL and insert data.
 import { Pool } from "pg";
-
-// We need dotenv to load environment variables from the .env file.
-import dotenv from "dotenv";
-
-// Load the .env file so we can read DB_USER and DB_NAME.
-dotenv.config();
+import { config } from "../config/env";
 
 // This is an array (a list) of joke objects that we want to insert into the database.
 // Think of this like a shopping list — we're telling the program "here are 30 jokes to add."
@@ -231,12 +225,9 @@ const seedJokes = [
 // This function connects to the database and inserts all the seed jokes.
 // "async" lets us use "await" inside to wait for database operations to finish.
 async function seedDB(): Promise<void> {
-  // Create a connection pool (a reusable group of database connections).
   const pool = new Pool({
-    // The database username — read from .env or default to "postgres".
-    user: process.env.DB_USER || "postgres",
-    // Which database to connect to — read from .env or default to "dad_jokes".
-    database: process.env.DB_NAME || "dad_jokes",
+    user: config.dbUser,
+    database: config.dbName,
   });
 
   try {

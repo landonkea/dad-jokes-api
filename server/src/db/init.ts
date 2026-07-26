@@ -1,33 +1,13 @@
-// We need the Pool class from "pg" to connect to PostgreSQL.
-// We'll use it twice: once as an admin to create the database, and once as a regular user to create tables.
 import { Pool } from "pg";
+import { config } from "../config/env";
 
-// We need dotenv to load environment variables from the .env file.
-import dotenv from "dotenv";
-
-// Load the .env file so we can read DB_USER, DB_NAME, etc.
-dotenv.config();
-
-// This is the main function that sets up the entire database from scratch.
-// "async" means this function can use "await" inside it — which lets us wait for
-// database operations to finish before moving on to the next step.
-// "Promise<void>" means "this function returns a promise that resolves to nothing (undefined)."
-// Think of a Promise like a receipt — it's a promise that the work will eventually be done.
 async function initDB(): Promise<void> {
-
-  // First, we connect to PostgreSQL's built-in "postgres" database.
-  // This is like connecting to the "front desk" of a hotel — you need this special connection
-  // to create new databases. You can't create a database while connected to one that doesn't exist yet.
   const adminPool = new Pool({
-    // The username to connect as (read from .env, or defaults to "postgres").
-    user: process.env.DB_USER || "postgres",
-    // We connect to the default "postgres" database, which always exists.
-    // This is NOT our "dad_jokes" database — it's a system database that lets us create new ones.
+    user: config.dbUser,
     database: "postgres",
   });
 
-  // What should our database be called? We read it from .env, or default to "dad_jokes".
-  const dbName = process.env.DB_NAME || "dad_jokes";
+  const dbName = config.dbName;
 
   // The "try" block is where we do our work. If anything goes wrong, the "catch" block handles it.
   // The "finally" block ALWAYS runs — whether things succeeded or failed.
@@ -63,12 +43,8 @@ async function initDB(): Promise<void> {
     await adminPool.end();
   }
 
-  // Now that the database exists, we need to connect to OUR specific database
-  // and create the tables inside it. This is a separate connection pool.
   const appPool = new Pool({
-    // Same username as before.
-    user: process.env.DB_USER || "postgres",
-    // But NOW we connect to our actual "dad_jokes" database (not "postgres").
+    user: config.dbUser,
     database: dbName,
   });
 

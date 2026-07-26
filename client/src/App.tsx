@@ -1,21 +1,13 @@
-// Import React and two hook functions we need: useState for storing data, useCallback for memoizing functions
 import React, { useState, useCallback } from "react";
-// Import the Header component that shows the site title and branding at the top
 import { Header } from "./components/Header";
-// Import the JokeCard component that shows a single random joke with voting
 import { JokeCard } from "./components/JokeCard";
-// Import the JokeList component that shows a scrollable list of multiple jokes
 import { JokeList } from "./components/JokeList";
-// Import the CategoryPicker component that lets users filter jokes by category
 import { CategoryPicker } from "./components/CategoryPicker";
-// Import the JokeSubmitter component that contains the form for adding new jokes
 import { JokeSubmitter } from "./components/JokeSubmitter";
-// Import the StatsPanel component that shows statistics about all the jokes
 import { StatsPanel } from "./components/StatsPanel";
-// Import the Particles component that renders floating emoji decorations in the background
 import { Particles } from "./components/Particles";
-// Import the Marquee component that shows a scrolling ticker of joke setup → punchline pairs
 import { Marquee } from "./components/Marquee";
+import { ThemeToggle } from "./components/ThemeToggle";
 
 // Define a TypeScript type that can only be one of these four tab names — prevents typos and gives autocomplete
 type Tab = "random" | "browse" | "submit" | "stats";
@@ -60,6 +52,8 @@ const App: React.FC = () => {
     <div className="app">
       {/* Render floating emoji particles in the background for visual flair */}
       <Particles />
+      {/* Theme toggle button in the top-right corner */}
+      <ThemeToggle />
       {/* Render the site header with the title "Dad Jokes API" */}
       <Header />
       {/* Render the scrolling ticker of joke setup→punchline pairs */}

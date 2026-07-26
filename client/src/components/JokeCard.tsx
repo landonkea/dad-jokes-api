@@ -1,13 +1,9 @@
-// Import React and the useState and useCallback hooks for managing state and memoizing functions
 import React, { useState, useCallback } from "react";
-// Import our custom hook that handles fetching and storing a random joke
 import { useRandomJoke } from "../hooks/useRandomJoke";
-// Import the API function that sends a vote (up or down) to the server
 import { voteJoke } from "../hooks/useJokes";
-// Import the Confetti component that renders a celebratory particle explosion
 import { Confetti } from "./Confetti";
-// Import the Toast component that shows temporary notification messages
 import { Toast } from "./Toast";
+import { JokeCardSkeleton } from "./Skeleton";
 
 // Define reaction message buckets based on groan level.
 // Each bucket has a minimum groan level and an array of funny reaction strings to randomly pick from.
@@ -110,16 +106,8 @@ export const JokeCard: React.FC = () => {
     }
   };
 
-  // If we're still loading a joke, show a loading spinner instead of the card
   if (loading) {
-    return (
-      <div className="joke-card">
-        <div className="joke-loading">
-          <div className="spinner" />
-          <p>Rummaging through dad's joke vault...</p>
-        </div>
-      </div>
-    );
+    return <JokeCardSkeleton />;
   }
 
   // If an error occurred while fetching, show an error message with a retry button

@@ -135,6 +135,55 @@
   --shadow-glow: 0 0 40px rgba(255, 46, 99, 0.3);
 }
 
+[data-theme="light"] {
+  --bg-primary: #f5f5f7;
+  --bg-secondary: #e8e8ee;
+  --bg-card: rgba(255, 255, 255, 0.9);
+  --text-primary: #1a1a2e;
+  --text-secondary: #444;
+  --text-muted: #888;
+  --shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.12);
+  --shadow-glow: 0 0 40px rgba(255, 46, 99, 0.1);
+}
+
+[data-theme="light"] body {
+  color: #1a1a2e;
+}
+
+[data-theme="light"] .header {
+  background: linear-gradient(160deg, rgba(255, 46, 99, 0.08), rgba(8, 217, 214, 0.05), rgba(255, 255, 255, 0.95));
+}
+
+[data-theme="light"] .tab-btn,
+[data-theme="light"] .category-btn,
+[data-theme="light"] .vote-btn,
+[data-theme="light"] .vote-btn-sm,
+[data-theme="light"] .joke-list-item,
+[data-theme="light"] .stat-card {
+  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: #1a1a2e;
+}
+
+[data-theme="light"] .form-group input[type="text"],
+[data-theme="light"] .form-group select,
+[data-theme="light"] .sort-controls select {
+  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: #1a1a2e;
+}
+
+[data-theme="light"] .punchline-text,
+[data-theme="light"] .joke-list-punchline,
+[data-theme="light"] .most-upvoted-punchline,
+[data-theme="light"] .stat-number {
+  background: linear-gradient(135deg, #c9184a, #e94560);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
 /* =============================================================================
    BODY STYLES
    =============================================================================
@@ -2013,6 +2062,11 @@ body::before {
   font-size: 0.75rem;
   margin-top: 6px;
   font-style: italic;
+}
+
+@keyframes skeletonShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 /* =============================================================================

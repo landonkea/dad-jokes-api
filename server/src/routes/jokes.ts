@@ -1,21 +1,9 @@
-// We need Router from Express — it's a tool that lets us organize routes into separate files.
-// Instead of writing all routes in one giant file, we can group related routes together.
-// Think of Router like chapters in a book — each one handles a section of the app.
-// "Request" and "Response" are types that represent the incoming HTTP request and outgoing response.
 import { Router, Request, Response } from "express";
-
-// We import the database connection pool so we can run SQL queries against our database.
-// This is the same pool defined in pool.ts — shared across the whole app.
 import pool from "../db/pool";
-
-// We import our custom TypeScript types so we can type-check our code.
-// "JokeInput" is the shape of data when creating a new joke.
-// "ApiResponse" is the standard envelope for all API responses.
-// "Joke" is the shape of a single joke from the database.
 import { JokeInput, ApiResponse, Joke } from "../types";
+import { voteLimiter } from "../middleware/rateLimiter";
+import { jokeInputSchema, voteInputSchema } from "../validation/jokeSchema";
 
-// Create a new Router instance. All the routes defined below will be attached to this router.
-// Later, in index.ts, we'll attach this router to the path "/api/jokes".
 const router = Router();
 
 // ============================================================
@@ -291,56 +279,27 @@ router.get("/:id", async (req: Request, res: Response): Promise<void> => {
 // Unlike GET (which just reads data), POST sends data in the request body.
 router.post("/", async (req: Request, res: Response): Promise<void> => {
   try {
-    // Extract the joke data from the request body.
-    // When someone sends a POST request, the data they send is in req.body.
-    // We destructure it into individual variables using curly braces.
-    // "JokeInput" is our TypeScript type that defines what fields a new joke should have.
-    const { setup, punchline, category, groan_level, author }: JokeInput = req.body;
-
-    // Validate that the required fields are present.
-    // A joke MUST have a setup and a punchline — these are the minimum requirements.
-    // If either is missing (empty string is falsy in JavaScript), send a 400 error.
-    if (!setup || !punchline) {
-      // HTTP 400 means "Bad Request" — the client sent invalid data.
-      // It's like filling out a form and forgetting to write your name.
+    const parsed = jokeInputSchema.safeParse(req.body);
+    if (!parsed.success) {
       res.status(400).json({
         success: false,
-        error: "Setup and punchline are required. Unlike my dad, who was required to be funny but never delivered.",
+        error: parsed.error.issues.map((i) => i.message).join("; "),
       });
       return;
     }
+    const { setup, punchline, category, groan_level, author } = parsed.data;
 
-    // Insert the new joke into the database.
-    // "$1" through "$5" are placeholders for the values in the array below.
-    // "RETURNING *" tells PostgreSQL to send back the newly created row (with its auto-generated id, etc.).
     const result = await pool.query(
       `INSERT INTO jokes (setup, punchline, category, groan_level, author)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [
-        // $1 → the setup text the user provided
-        setup,
-        // $2 → the punchline text the user provided
-        punchline,
-        // $3 → the category, or "classic" if the user didn't provide one
-        category || "classic",
-        // $4 → the groan level, or 5 (middle of the scale) if not provided
-        groan_level || 5,
-        // $5 → the author name, or "Anonymous Dad" if not provided
-        author || "Anonymous Dad",
-      ]
+      [setup, punchline, category || "classic", groan_level || 5, author || "Anonymous Dad"]
     );
 
-    // Build a successful response with the newly created joke.
     const response: ApiResponse<Joke> = {
       success: true,
-      // result.rows[0] is the joke that was just inserted, including its auto-generated id.
       data: result.rows[0],
     };
-
-    // Send a 201 (Created) status code.
-    // HTTP 201 means "I successfully created the thing you asked for."
-    // 201 is more specific than 200 — it tells the client a new resource was born.
     res.status(201).json(response);
   } catch (err) {
     const response: ApiResponse<null> = {
@@ -358,60 +317,37 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
 // The client sends which joke they're voting on and whether it's an upvote or downvote.
 // NOTE: This route MUST come after the /:id route in the code, because Express matches
 // routes in order. If "/vote" were a parameter, it would be caught by /:id first.
-router.post("/vote", async (req: Request, res: Response): Promise<void> => {
+router.post("/vote", voteLimiter, async (req: Request, res: Response): Promise<void> => {
   try {
-    // Extract the joke_id and vote_type from the request body.
-    const { joke_id, vote_type } = req.body;
-
-    // Validate the input.
-    // 1. joke_id must be provided (truthy check).
-    // 2. vote_type must be exactly "up" or "down" — nothing else.
-    // "[...]includes(vote_type)" checks if the array contains the value.
-    // If validation fails, send a 400 (Bad Request) error.
-    if (!joke_id || !["up", "down"].includes(vote_type)) {
+    const parsed = voteInputSchema.safeParse(req.body);
+    if (!parsed.success) {
       res.status(400).json({
         success: false,
-        error: "joke_id and vote_type ('up' or 'down') are required.",
+        error: parsed.error.issues.map((i) => i.message).join("; "),
       });
       return;
     }
+    const { joke_id, vote_type } = parsed.data;
 
-    // Record the vote in the votes table.
-    // This creates a permanent record of who voted on what (even though we don't track WHO voted).
-    // It's like dropping a ballot into a box.
     await pool.query("INSERT INTO votes (joke_id, vote_type) VALUES ($1, $2)", [
       joke_id,
       vote_type,
     ]);
 
-    // Now we need to update the joke's vote count.
-    // Determine which column to increment: "upvotes" if it's an upvote, "downvotes" if it's a downvote.
-    // "column" will be either the string "upvotes" or "downvotes".
     const column = vote_type === "up" ? "upvotes" : "downvotes";
-
-    // Increment the appropriate vote count by 1.
-    // "${column}" inserts the column name directly into the SQL (it's either "upvotes" or "downvotes",
-    // both of which are safe — they come from our own code, not user input).
-    // "${column} + 1" means "take the current value and add 1."
-    // For example: "UPDATE jokes SET upvotes = upvotes + 1 WHERE id = 42"
     await pool.query(`UPDATE jokes SET ${column} = ${column} + 1 WHERE id = $1`, [
       joke_id,
     ]);
 
-    // Fetch the updated joke from the database so we can send it back to the client.
-    // This way the client immediately sees the new vote count.
     const jokeResult = await pool.query("SELECT * FROM jokes WHERE id = $1", [
       joke_id,
     ]);
 
-    // If no joke was found with that id (maybe it was deleted between the vote and now),
-    // send a 404 error.
     if (jokeResult.rows.length === 0) {
       res.status(404).json({ success: false, error: "Joke not found." });
       return;
     }
 
-    // Send back the updated joke with its new vote count.
     const response: ApiResponse<Joke> = {
       success: true,
       data: jokeResult.rows[0],

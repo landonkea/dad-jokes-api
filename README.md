@@ -16,6 +16,9 @@ A full-stack web application built with **React**, **Node.js/Express**, **TypeSc
 - [File-by-File Explanation](#file-by-file-explanation)
 - [API Endpoints](#api-endpoints)
 - [How the Pieces Connect](#how-the-pieces-connect)
+- [Production Features](#production-features)
+- [Docker](#docker)
+- [CI/CD](#cicd)
 - [Common Issues](#common-issues)
 - [What's Next (Testing)](#whats-next-testing)
 
@@ -151,6 +154,12 @@ dad-jokes-api/                    ← Root folder
 ├── package.json                  ← Root scripts (setup, start, etc.)
 ├── .gitignore                    ← Tells git which files to ignore
 ├── README.md                     ← This file you're reading right now
+├── TESTING.md                    ← Testing guide
+├── Dockerfile                    ← Docker build configuration
+├── docker-compose.yml            ← Docker Compose for app + database
+├── .github/
+│   └── workflows/
+│       └── ci.yml                ← GitHub Actions CI/CD pipeline
 │
 ├── server/                       ← Backend (Node.js + Express)
 │   ├── package.json              ← Server dependencies
@@ -161,14 +170,19 @@ dad-jokes-api/                    ← Root folder
 │       ├── index.ts              ← Server entry point (starts everything)
 │       ├── types/
 │       │   └── index.ts          ← TypeScript type definitions
+│       ├── config/
+│       │   └── env.ts            ← Environment variable validation
 │       ├── db/
 │       │   ├── pool.ts           ← Database connection manager
 │       │   ├── init.ts           ← Creates database + tables
 │       │   └── seed.ts           ← Fills database with sample jokes
 │       ├── routes/
 │       │   └── jokes.ts          ← API route handlers
+│       ├── validation/
+│       │   └── jokeSchema.ts     ← Zod validation schemas
 │       └── middleware/
-│           └── errorHandler.ts   ← Catches and handles errors
+│           ├── errorHandler.ts   ← Catches and handles errors
+│           └── rateLimiter.ts    ← Rate limiting middleware
 │
 └── client/                       ← Frontend (React + TypeScript)
     ├── package.json              ← Client dependencies
@@ -184,7 +198,8 @@ dad-jokes-api/                    ← Root folder
         │   └── global.css        ← All visual styling
         ├── hooks/
         │   ├── useJokes.ts       ← Functions to talk to the server API
-        │   └── useRandomJoke.ts  ← Hook that fetches random jokes
+        │   ├── useRandomJoke.ts  ← Hook that fetches random jokes
+        │   └── useTheme.ts       ← Dark/light theme hook
         └── components/
             ├── Header.tsx         ← Top banner with title
             ├── JokeCard.tsx       ← Main random joke display card
@@ -195,7 +210,10 @@ dad-jokes-api/                    ← Root folder
             ├── Particles.tsx      ← Floating emoji background
             ├── Marquee.tsx        ← Scrolling joke ticker
             ├── Confetti.tsx       ← Confetti animation
-            └── Toast.tsx          ← Pop-up notification messages
+            ├── Toast.tsx          ← Pop-up notification messages
+            ├── ErrorBoundary.tsx  ← Catches component tree errors
+            ├── ThemeToggle.tsx    ← Dark/light theme toggle button
+            └── Skeleton.tsx       ← Shimmer loading placeholders
 ```
 
 ---
@@ -329,6 +347,59 @@ Every pixel of styling lives here: the dark neon theme, animations, glassmorphis
 9. The hook receives it, React re-renders the joke on screen
 10. You click "Reveal the Punchline" — this is pure UI, no server needed
 11. You click 👍 — the UI calls `voteJoke()` → sends POST to server → server updates the database
+
+---
+
+## Production Features
+
+### Error Boundary (Client)
+`client/src/components/ErrorBoundary.tsx` catches JavaScript errors anywhere in the component tree, preventing a single broken component from crashing the entire app. Shows a styled fallback UI with a reload button.
+
+### Rate Limiting (Server)
+`server/src/middleware/rateLimiter.ts` protects the API from abuse:
+- **General API**: 100 requests per 15 minutes per IP
+- **Voting**: 30 votes per 15 minutes per IP (stricter limit)
+
+### Input Validation (Server)
+`server/src/validation/jokeSchema.ts` uses Zod to validate all incoming data:
+- Joke submissions: setup (5-500 chars), punchline (2-500 chars), category, groan level (1-10), author
+- Votes: joke_id (positive integer), vote_type ("up" or "down")
+- Rejects bad data early with helpful error messages
+
+### Dark/Light Theme Toggle (Client)
+`client/src/components/ThemeToggle.tsx` lets users switch between dark and light themes. Preference is saved to localStorage and persists across sessions.
+
+### Skeleton Loading (Client)
+`client/src/components/Skeleton.tsx` shows shimmer placeholders while content loads — better UX than a spinner because it shows the shape of incoming content.
+
+### Environment Validation (Server)
+`server/src/config/env.ts` validates that all required environment variables are set at startup. Fails fast with a clear error instead of mysterious crashes later.
+
+---
+
+## Docker
+
+### Quick Start with Docker Compose
+```bash
+docker-compose up --build
+```
+
+This starts PostgreSQL and the app together. The app will be available at `http://localhost:3001`.
+
+### Standalone Docker Build
+```bash
+docker build -t dad-jokes-api .
+docker run -e DB_HOST=host.docker.internal dad-jokes-api
+```
+
+---
+
+## CI/CD
+
+GitHub Actions workflow (`.github/workflows/ci.yml`) runs on push to `main`/`dev` and on PRs to `main`:
+- Spins up a PostgreSQL 16 service container
+- Installs and tests both server and client
+- Uses Node.js 20
 
 ---
 
