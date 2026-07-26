@@ -29,35 +29,35 @@ const GROAN_LABELS: Record<number, string> = {
 // The JokeSubmitter component renders a form for users to submit their own dad jokes
 export const JokeSubmitter: React.FC<JokeSubmitterProps> = ({ onJokeSubmitted }) => {
   // Each piece of form data gets its own state variable
-  const [setup, setSetup] = useState("");
-  const [punchline, setPunchline] = useState("");
-  const [category, setCategory] = useState("classic");
-  const [groanLevel, setGroanLevel] = useState(5);
-  const [author, setAuthor] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
-  const [toastVisible, setToastVisible] = useState(false);
+  const [setup, setSetup] = useState("");                        // The setup line text, starts empty
+  const [punchline, setPunchline] = useState("");                // The punchline text, starts empty
+  const [category, setCategory] = useState("classic");           // Selected category, defaults to "classic"
+  const [groanLevel, setGroanLevel] = useState(5);               // Groan rating slider, defaults to middle (5)
+  const [author, setAuthor] = useState("");                      // Author name, starts empty
+  const [submitting, setSubmitting] = useState(false);           // Whether the form is currently submitting
+  const [result, setResult] = useState<{ success: boolean; message: string } | null>(null); // Submission result message
+  const [toastVisible, setToastVisible] = useState(false);       // Whether the success toast is showing
 
   // Handle the form submission when the user clicks the submit button
   const handleSubmit = async (e: React.FormEvent) => {
     // Prevent the browser's default form behavior (which would reload the page)
     e.preventDefault();
-    // Don't submit if the setup or punchline fields are empty
+    // Don't submit if the setup or punchline fields are empty (after trimming whitespace)
     if (!setup.trim() || !punchline.trim()) return;
 
-    setSubmitting(true);
-    setResult(null);
+    setSubmitting(true);    // Show the submitting state on the button
+    setResult(null);        // Clear any previous result message
 
     try {
       // Send the joke data to the server via POST request
       await submitJoke({
-        setup: setup.trim(),
-        punchline: punchline.trim(),
-        category,
-        groan_level: groanLevel,
-        author: author.trim() || "Anonymous Dad",
+        setup: setup.trim(),              // Trim whitespace from the setup
+        punchline: punchline.trim(),      // Trim whitespace from the punchline
+        category,                          // The selected category string
+        groan_level: groanLevel,           // The groan rating from the slider
+        author: author.trim() || "Anonymous Dad", // Use entered name, or default if empty
       });
-      // Store a success message
+      // Store a success message to display below the form
       setResult({
         success: true,
         message: "🎉 Joke submitted! The Groan Council will convene at sundown.",
@@ -74,26 +74,33 @@ export const JokeSubmitter: React.FC<JokeSubmitterProps> = ({ onJokeSubmitted })
       // Tell the parent component to refresh the joke list
       onJokeSubmitted();
     } catch (err) {
+      // If submission failed, show the error message from the server
       setResult({ success: false, message: (err as Error).message });
     } finally {
+      // Turn off the submitting state whether it succeeded or failed
       setSubmitting(false);
     }
   };
 
   return (
     <div className="joke-submitter">
+      {/* Success toast that appears when a joke is submitted */}
       <Toast
         message="🏅 Your joke has been enshrined in the Hall of Groans!"
         type="success"
         visible={toastVisible}
       />
+      {/* Title for the submission form */}
       <h3 className="submitter-title">Submit Your Dad Joke</h3>
+      {/* Fun subtitle encouraging the user to share */}
       <p className="submitter-subtitle">
         Share the pain. Let others groan at your humor. Remember: if your kids
         don't sigh, it's not a dad joke.
       </p>
 
+      {/* The actual form element — onSubmit fires when the user clicks the submit button */}
       <form onSubmit={handleSubmit} className="submitter-form">
+        {/* Setup field group — label + text input for the first part of the joke */}
         <div className="form-group">
           <label htmlFor="setup">Setup (The wind-up)</label>
           <input
@@ -106,6 +113,7 @@ export const JokeSubmitter: React.FC<JokeSubmitterProps> = ({ onJokeSubmitted })
             maxLength={500}
           />
         </div>
+        {/* Punchline field group — label + text input for the funny payoff line */}
         <div className="form-group">
           <label htmlFor="punchline">Punchline (The groan inducer)</label>
           <input
@@ -118,6 +126,7 @@ export const JokeSubmitter: React.FC<JokeSubmitterProps> = ({ onJokeSubmitted })
             maxLength={500}
           />
         </div>
+        {/* Row containing category dropdown and author name side by side */}
         <div className="form-row">
           <div className="form-group">
             <label htmlFor="category">Category</label>
@@ -150,9 +159,11 @@ export const JokeSubmitter: React.FC<JokeSubmitterProps> = ({ onJokeSubmitted })
             />
           </div>
         </div>
+        {/* Groan level slider with a label showing the current value and its funny description */}
         <div className="form-group">
           <label htmlFor="groan">
             Groan Level: {groanLevel}/10
+            {/* Look up the funny label for the current groan level number */}
             <span className="groan-preview"> — {GROAN_LABELS[groanLevel]}</span>
           </label>
           <input
@@ -165,13 +176,16 @@ export const JokeSubmitter: React.FC<JokeSubmitterProps> = ({ onJokeSubmitted })
             className="groan-slider"
           />
         </div>
+        {/* Submit button — disabled while submitting or if required fields are empty */}
         <button
           type="submit"
           className="btn btn-submit"
           disabled={submitting || !setup.trim() || !punchline.trim()}
         >
+          {/* Show a funny loading message while submitting, otherwise show the normal label */}
           {submitting ? "Consulting the Dad Council..." : "🎤 Drop the Punchline"}
         </button>
+        {/* If there's a result message (success or error), display it below the button */}
         {result && (
           <div className={`submitter-result ${result.success ? "success" : "error"}`}>
             {result.message}

@@ -1,4 +1,6 @@
+// Import the Pool class to create a database connection for seeding.
 import { Pool } from "pg";
+// Import our config to get database credentials.
 import { config } from "../config/env";
 
 // This is an array (a list) of joke objects that we want to insert into the database.
@@ -18,6 +20,7 @@ const seedJokes = [
     author: "Dad #1",
   },
   {
+    // Each joke object follows the same pattern: setup, punchline, category, groan_level, author.
     setup: "What do you call a fake noodle?",
     punchline: "An impasta.",
     category: "puns",
@@ -224,9 +227,13 @@ const seedJokes = [
 
 // This function connects to the database and inserts all the seed jokes.
 // "async" lets us use "await" inside to wait for database operations to finish.
+// "Promise<void>" means it doesn't return a value — it just performs the seeding work.
 async function seedDB(): Promise<void> {
+  // Create a new connection pool connected to our application database.
   const pool = new Pool({
+    // The PostgreSQL username from our config.
     user: config.dbUser,
+    // The database name from our config.
     database: config.dbName,
   });
 
@@ -254,12 +261,14 @@ async function seedDB(): Promise<void> {
       // This makes the seed data look more realistic — not every joke starts at 0 votes.
       const upvotes = Math.floor(Math.random() * 200);
       // Same idea, but for downvotes — between 0 and 29.
+      // We use a smaller range so downvotes are generally less than upvotes (realistic!).
       const downvotes = Math.floor(Math.random() * 30);
       // This SQL inserts one joke into the jokes table.
       // $1, $2, $3, etc. are placeholders that get replaced by the values in the array below.
       // This is safer than building the string manually because it prevents SQL injection attacks.
       // "RETURNING *" would send back the inserted row, but we don't need it here.
       await pool.query(
+        // The SQL INSERT statement with placeholders ($1 through $7) for each value.
         `INSERT INTO jokes (setup, punchline, category, groan_level, upvotes, downvotes, author)
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
         [
@@ -282,9 +291,11 @@ async function seedDB(): Promise<void> {
     }
 
     // Let the developer know how many jokes were inserted.
+    // seedJokes.length gives us the total count (30 in this case).
     console.log(`Seeded ${seedJokes.length} jokes into the database.`);
   } finally {
     // Always close the database connection when we're done, even if an error occurred.
+    // This frees up resources on the database server.
     await pool.end();
   }
 }

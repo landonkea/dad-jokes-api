@@ -17,8 +17,7 @@ interface Stats {
   category_counts: { category: string; count: number }[];  // Array of how many jokes are in each category
 }
 
-// An array of emojis used as decorative icons for each stat card (not currently used in the JSX but available)
-const STAT_EMOJIS = ["🃏", "🗳️", "😫", "📂"];
+
 
 // The StatsPanel component fetches and displays dashboard-style statistics about all the jokes.
 export const StatsPanel: React.FC = () => {
@@ -63,6 +62,7 @@ export const StatsPanel: React.FC = () => {
           </div>
         ))}
       </div>
+      {/* Show the most upvoted joke section only if there is one */}
       {stats.most_upvoted && (
         <div className="most-upvoted">
           <h4>🏆 Most Popular Dad Joke</h4>
@@ -75,6 +75,7 @@ export const StatsPanel: React.FC = () => {
           </span>
         </div>
       )}
+      {/* Show the category breakdown bar chart only if there are categories */}
       {stats.category_counts.length > 0 && (
         <div className="category-breakdown">
           <h4>📈 Category Breakdown</h4>

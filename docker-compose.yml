@@ -1,30 +1,93 @@
+# =============================================================================
+# docker-compose.yml — Defines and connects all services for the full app stack
+# =============================================================================
+# WHAT: This file tells Docker Compose how to run our entire app — both the
+#       PostgreSQL database AND the Express/React application — as separate
+#       services that can talk to each other.
+# WHY:  Instead of manually starting a database and the app separately, one
+#       command ("docker compose up") spins up everything with the right
+#       settings. This is the standard way to run multi-service apps.
+# HOW:  We define two services (db + app), connect them with a shared network
+#       (automatic), and use a named volume to persist database data.
+# =============================================================================
+
+# "version" specifies the Docker Compose file format version.
+# "3.8" is the latest stable version and supports all the features we need.
 version: "3.8"
 
+# "services" is the top-level key where we define each container/service.
 services:
+
+  # ---------------------------------------------------------------------------
+  # SERVICE 1: "db" — PostgreSQL database
+  # ---------------------------------------------------------------------------
+  # This service runs a PostgreSQL database to store all our dad jokes.
+  # We use Alpine for a smaller image (~150MB vs ~350MB for the full image).
   db:
+    # "image" tells Compose which pre-built Docker image to use.
+    # "postgres:16-alpine" is the official PostgreSQL 16 image on Alpine Linux.
     image: postgres:16-alpine
+
+    # "environment" sets environment variables INSIDE the container.
+    # PostgreSQL reads these on first startup to create the initial user,
+    # password, and database. These MUST match what our app expects.
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: dad_jokes
+      POSTGRES_USER: postgres       # The admin username for PostgreSQL
+      POSTGRES_PASSWORD: postgres   # The admin password (fine for local dev)
+      POSTGRES_DB: dad_jokes        # Creates this database on first startup
+
+    # "ports" maps a port on YOUR computer (host) to a port inside the container.
+    # Format is "HOST:CONTAINER". Here, port 5432 on your machine maps to
+    # PostgreSQL's port 5432 inside the container. This lets database GUIs
+    # like pgAdmin connect to it from your host machine.
     ports:
       - "5432:5432"
+
+    # "volumes" mounts a named volume for persistent data storage.
+    # Without this, ALL DATA IS LOST when the container is stopped/restarted.
+    # "pgdata" is a named volume managed by Docker, mapped to PostgreSQL's
+    # data directory inside the container.
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  # ---------------------------------------------------------------------------
+  # SERVICE 2: "app" — Our Dad Jokes API + Client
+  # ---------------------------------------------------------------------------
+  # This service runs our Express server (which also serves the built React
+  # client). It's built from the Dockerfile in the project root.
   app:
+    # "build: ." tells Compose to build the image from the Dockerfile in the
+    # current directory (the project root). The "." means "this folder."
     build: .
+
+    # Map port 3001 on your machine to port 3001 inside the container.
+    # After starting, visit http://localhost:3001 in your browser.
     ports:
       - "3001:3001"
+
+    # "environment" passes database connection details to our app.
+    # "DB_HOST: db" uses Docker's internal DNS — "db" resolves to the db
+    # service's IP address on the shared Docker network. This is why we
+    # don't use "localhost" — that would refer to the app container itself,
+    # not the database container.
     environment:
-      DB_HOST: db
-      DB_PORT: 5432
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      DB_NAME: dad_jokes
-      PORT: 3001
+      DB_HOST: db            # Points to the "db" service (PostgreSQL)
+      DB_PORT: 5432          # PostgreSQL's default port
+      DB_USER: postgres      # Must match POSTGRES_USER above
+      DB_PASSWORD: postgres  # Must match POSTGRES_PASSWORD above
+      DB_NAME: dad_jokes     # Must match POSTGRES_DB above
+      PORT: 3001             # The port our Express server listens on
+
+    # "depends_on" tells Compose to start the "db" service BEFORE "app."
+    # This ensures the database is available when our server tries to connect.
+    # Note: this only waits for the container to start, not for PostgreSQL
+    # to be fully ready — our app code handles retries for that.
     depends_on:
       - db
 
+# "volumes" (top-level) declares the named volumes used by services above.
+# "pgdata" is declared here so Docker knows to create and manage it.
+# Named volumes persist data across container restarts and are stored in
+# Docker's own storage area (not in your project folder).
 volumes:
   pgdata:

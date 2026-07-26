@@ -1,9 +1,19 @@
+// Import Router and the Request/Response types from Express.
+// Router lets us define routes in a separate file and mount them in the main app.
+// Request and Response are TypeScript types that describe the shape of HTTP requests and responses.
 import { Router, Request, Response } from "express";
+// Import the database pool so we can run SQL queries against PostgreSQL.
 import pool from "../db/pool";
+// Import our TypeScript interfaces for type safety throughout this file.
+// JokeInput = shape of data for creating a joke, ApiResponse = standard response format, Joke = a joke object.
 import { JokeInput, ApiResponse, Joke } from "../types";
+// Import the vote-specific rate limiter (stricter than the general API limiter).
 import { voteLimiter } from "../middleware/rateLimiter";
+// Import our Zod validation schemas — these check that incoming data is valid before we use it.
 import { jokeInputSchema, voteInputSchema } from "../validation/jokeSchema";
 
+// Create a new Router instance.
+// This router will handle all routes relative to "/api/jokes" (as mounted in index.ts).
 const router = Router();
 
 // ============================================================
@@ -77,6 +87,7 @@ router.get("/", async (_req: Request, res: Response): Promise<void> => {
     // "result.rows" is an array of joke objects returned by the database.
     const response: ApiResponse<Joke[]> = {
       success: true,
+      // Pass the array of jokes as the data payload.
       data: result.rows,
     };
 
@@ -164,6 +175,7 @@ router.get("/categories", async (_req: Request, res: Response): Promise<void> =>
     };
     res.json(response);
   } catch (err) {
+    // If the query fails, send a 500 error response.
     const response: ApiResponse<null> = {
       success: false,
       error: (err as Error).message,
@@ -221,6 +233,7 @@ router.get("/stats", async (_req: Request, res: Response): Promise<void> => {
         category_counts: categoryCounts.rows,
       },
     };
+    // Send the stats response back to the client.
     res.json(response);
   } catch (err) {
     const response: ApiResponse<null> = {
@@ -279,27 +292,41 @@ router.get("/:id", async (req: Request, res: Response): Promise<void> => {
 // Unlike GET (which just reads data), POST sends data in the request body.
 router.post("/", async (req: Request, res: Response): Promise<void> => {
   try {
+    // Validate the incoming request body against our Zod schema.
+    // "safeParse" tries to validate and returns either { success: true, data } or { success: false, error }.
+    // This prevents invalid data from ever reaching our database.
     const parsed = jokeInputSchema.safeParse(req.body);
+    // If validation failed, send back a 400 (Bad Request) with the specific error messages.
     if (!parsed.success) {
       res.status(400).json({
         success: false,
+        // Join all validation error messages into a single string separated by "; ".
+        // "parsed.error.issues" is an array of error objects from Zod.
         error: parsed.error.issues.map((i) => i.message).join("; "),
       });
+      // Stop execution — don't try to insert invalid data.
       return;
     }
+    // Destructure the validated data into individual variables for easy use.
     const { setup, punchline, category, groan_level, author } = parsed.data;
 
+    // Insert the new joke into the database.
+    // "RETURNING *" tells PostgreSQL to send back the newly created row.
     const result = await pool.query(
       `INSERT INTO jokes (setup, punchline, category, groan_level, author)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
+      // The "||" operator provides fallback values for optional fields.
+      // If category is undefined, use "classic". If groan_level is undefined, use 5. Etc.
       [setup, punchline, category || "classic", groan_level || 5, author || "Anonymous Dad"]
     );
 
+    // Build a success response with the newly created joke.
     const response: ApiResponse<Joke> = {
       success: true,
       data: result.rows[0],
     };
+    // Send with HTTP status 201 (Created) — this is the correct status for successful resource creation.
     res.status(201).json(response);
   } catch (err) {
     const response: ApiResponse<null> = {
@@ -319,7 +346,9 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
 // routes in order. If "/vote" were a parameter, it would be caught by /:id first.
 router.post("/vote", voteLimiter, async (req: Request, res: Response): Promise<void> => {
   try {
+    // Validate the vote data against our Zod schema.
     const parsed = voteInputSchema.safeParse(req.body);
+    // If validation failed, send a 400 error with the validation messages.
     if (!parsed.success) {
       res.status(400).json({
         success: false,
@@ -327,27 +356,38 @@ router.post("/vote", voteLimiter, async (req: Request, res: Response): Promise<v
       });
       return;
     }
+    // Extract the validated joke_id and vote_type from the parsed data.
     const { joke_id, vote_type } = parsed.data;
 
+    // Insert a new record into the votes table to log this vote.
+    // This keeps a permanent record of every vote cast.
     await pool.query("INSERT INTO votes (joke_id, vote_type) VALUES ($1, $2)", [
       joke_id,
       vote_type,
     ]);
 
+    // Determine which column to update: "upvotes" if vote_type is "up", "downvotes" if "down".
+    // The ternary operator (condition ? valueIfTrue : valueIfFalse) is a compact if/else.
     const column = vote_type === "up" ? "upvotes" : "downvotes";
+    // Increment the appropriate vote counter on the joke by 1.
+    // "SET ${column} = ${column} + 1" adds 1 to whichever column was chosen.
     await pool.query(`UPDATE jokes SET ${column} = ${column} + 1 WHERE id = $1`, [
       joke_id,
     ]);
 
+    // Fetch the updated joke so we can send it back to the client.
+    // This way the client gets the joke with its new vote count.
     const jokeResult = await pool.query("SELECT * FROM jokes WHERE id = $1", [
       joke_id,
     ]);
 
+    // If no joke exists with that ID (shouldn't happen but just in case), send a 404.
     if (jokeResult.rows.length === 0) {
       res.status(404).json({ success: false, error: "Joke not found." });
       return;
     }
 
+    // Send back the updated joke with its new vote counts.
     const response: ApiResponse<Joke> = {
       success: true,
       data: jokeResult.rows[0],

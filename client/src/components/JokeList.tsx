@@ -89,17 +89,22 @@ export const JokeList: React.FC<JokeListProps> = ({ category, sort }) => {
   // Main rendering: the list of jokes (or an empty state message)
   return (
     <div className="joke-list">
+      {/* Show an empty state message if no jokes match the current filters */}
       {jokes.length === 0 && (
         <p className="joke-list-empty">
           No jokes found. Even the database is speechless. 🤐
         </p>
       )}
+      {/* Loop through each joke and render a clickable accordion item */}
       {jokes.map((joke) => (
         <div key={joke.id} className="joke-list-item">
+          {/* The header row — clicking it toggles the punchline open/closed */}
           <div className="joke-list-item-header" onClick={() => setExpandedId(expandedId === joke.id ? null : joke.id)}>
             <span className="joke-list-setup">{joke.setup}</span>
+            {/* Arrow indicator: ▼ when expanded, ▶ when collapsed */}
             <span className="joke-list-expand">{expandedId === joke.id ? "▼" : "▶"}</span>
           </div>
+          {/* Only render the expanded body if this joke's ID matches expandedId */}
           {expandedId === joke.id && (
             <div className="joke-list-item-body">
               <p className="joke-list-punchline">💬 {joke.punchline}</p>

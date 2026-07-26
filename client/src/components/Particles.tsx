@@ -1,5 +1,5 @@
-// Import React and two hooks: useEffect for running side effects, useState for storing data
-import React, { useEffect, useState } from "react";
+// Import React and useState for storing data
+import React, { useState } from "react";
 
 // An array of emojis that will be randomly selected for the floating background particles.
 // These add visual interest and humor to the page.

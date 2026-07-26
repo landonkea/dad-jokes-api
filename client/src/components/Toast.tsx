@@ -1,5 +1,5 @@
 // Import React so we can use JSX syntax to define the component
-import React, { useEffect, useState } from "react";
+import React from "react";
 
 // Define the props (inputs) that the Toast component accepts from its parent
 interface ToastProps {
@@ -11,8 +11,10 @@ interface ToastProps {
 // The Toast component is a small popup notification that appears briefly to give the user feedback.
 // It slides in/out based on the "visible" prop and changes color based on "type".
 export const Toast: React.FC<ToastProps> = ({ message, type = "info", visible }) => {
+  // The outer div gets CSS classes for the type and visibility — CSS handles the slide animation
   return (
     <div className={`toast ${type} ${visible ? "visible" : ""}`}>
+      {/* Display the message text passed in via props */}
       {message}
     </div>
   );

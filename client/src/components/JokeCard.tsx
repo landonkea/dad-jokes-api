@@ -1,8 +1,14 @@
-import React, { useState, useCallback } from "react";
+// Import React and useState for managing component state (voted, punchline visibility, toast, etc.)
+import React, { useState } from "react";
+// Import our custom hook that handles fetching and refreshing a random joke
 import { useRandomJoke } from "../hooks/useRandomJoke";
+// Import the API function that sends vote data to the server
 import { voteJoke } from "../hooks/useJokes";
+// Import the Confetti component for the celebratory particle effect when upvoting
 import { Confetti } from "./Confetti";
+// Import the Toast component for showing brief popup notifications
 import { Toast } from "./Toast";
+// Import the skeleton placeholder that shows while the joke is loading
 import { JokeCardSkeleton } from "./Skeleton";
 
 // Define reaction message buckets based on groan level.
@@ -106,6 +112,7 @@ export const JokeCard: React.FC = () => {
     }
   };
 
+  // While the joke is being fetched from the server, show the skeleton placeholder
   if (loading) {
     return <JokeCardSkeleton />;
   }
@@ -132,20 +139,27 @@ export const JokeCard: React.FC = () => {
   // Main joke card rendering — shown when we have a loaded joke with no errors
   return (
     <div className="joke-card" key={joke.id}>
+      {/* Confetti overlay — only visible when confettiTrigger is true */}
       <Confetti trigger={confettiTrigger} onComplete={() => setConfettiTrigger(false)} />
+      {/* Toast notification popup — only visible when toastVisible is true */}
       <Toast message={toastMsg} type={toastType} visible={toastVisible} />
+      {/* Badge showing which category this joke belongs to */}
       <div className="joke-category-badge">{joke.category}</div>
+      {/* Groan meter showing repeated emoji faces proportional to the groan level */}
       <div className="joke-groan-meter">
         <span>Groan Level: </span>
+        {/* Create an array of "😫" emojis, one per groan level point, joined into a string */}
         <span className="groan-eyes">
-          {Array.from({ length: joke.groan_level }, (_, i) => "😫").join("")}
+          {Array.from({ length: joke.groan_level }, (_, _i) => "😫").join("")}
         </span>
         <span className="groan-number">{joke.groan_level}/10</span>
       </div>
+      {/* The setup line of the joke (always visible) */}
       <div className="joke-setup">
         <span className="joke-label">Setup:</span>
         <p>{joke.setup}</p>
       </div>
+      {/* If punchline is hidden, show the reveal button. If visible, show the punchline text. */}
       {!showPunchline ? (
         <button className="btn btn-punchline" onClick={handleReveal}>
           🥁 Reveal the Punchline 🥁
@@ -154,11 +168,14 @@ export const JokeCard: React.FC = () => {
         <div className="joke-punchline reveal">
           <span className="joke-label">Punchline:</span>
           <p className="punchline-text">{joke.punchline}</p>
+          {/* Show a funny reaction message based on the joke's groan level */}
           <p className="joke-reaction">{getReaction(joke.groan_level)}</p>
         </div>
       )}
+      {/* Footer row with vote buttons and author attribution */}
       <div className="joke-footer">
         <div className="joke-votes">
+          {/* Upvote button — adds 1 locally if user voted up, disabled after voting */}
           <button
             className={`vote-btn upvote ${voted === "up" ? "voted" : ""}`}
             onClick={() => handleVote("up")}
@@ -166,6 +183,7 @@ export const JokeCard: React.FC = () => {
           >
             👍 {joke.upvotes + (voted === "up" ? 1 : 0)}
           </button>
+          {/* Downvote button — adds 1 locally if user voted down, disabled after voting */}
           <button
             className={`vote-btn downvote ${voted === "down" ? "voted" : ""}`}
             onClick={() => handleVote("down")}
@@ -174,8 +192,10 @@ export const JokeCard: React.FC = () => {
             👎 {joke.downvotes + (voted === "down" ? 1 : 0)}
           </button>
         </div>
+        {/* Author name shown at the right side of the footer */}
         <span className="joke-author">— {joke.author}</span>
       </div>
+      {/* Button to load the next random joke */}
       <button onClick={handleNewJoke} className="btn btn-secondary">
         🔄 Another One (Dj Khaled voice)
       </button>

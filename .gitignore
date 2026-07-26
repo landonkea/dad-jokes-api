@@ -1,37 +1,39 @@
 # =============================================================================
 # Git Ignore Rules
 # =============================================================================
-# This file tells Git (our version control system) which files and folders
-# to IGNORE — meaning Git will never track, commit, or push them.
-# This keeps our repository clean and prevents sensitive data from leaking.
-#
-# WHY each line exists is explained below.
+# WHAT: This file tells Git (our version control system) which files and
+#       folders to IGNORE — meaning Git will never track, commit, or push them.
+# WHY:  Without this file, Git would try to track everything — including
+#       thousands of dependency files, build outputs, and secret credentials.
+#       This keeps our repository clean, small, and secure.
+# HOW:  Each line is a pattern. Git checks every file against these patterns
+#       before adding or tracking it. Lines starting with # are comments.
 # =============================================================================
 
-# node_modules/ = The folder where all our project's dependencies (libraries)
-# are installed when you run "npm install". This folder can contain THOUSANDS
-# of files (100,000+!) and is huge. It's regenerated from package.json, so
-# there's no need to save it. Every developer runs "npm install" to rebuild it.
+# node_modules/ = The folder where all project dependencies (libraries) are
+# installed when you run "npm install". It can contain 100,000+ files and
+# is regenerated from package.json/package-lock.json, so there's zero need
+# to save it. Every developer runs "npm install" to rebuild it locally.
 node_modules/
 
-# dist/ = The folder where compiled/built output goes after running a build
-# command. For the server, this contains JavaScript files compiled from TypeScript.
-# For the client, this contains the optimized production website files.
-# We don't track this because it can always be regenerated from the source code.
+# dist/ = The folder where compiled/built output goes after running a build.
+# For the server: JavaScript files compiled from TypeScript.
+# For the client: Optimized production website files (HTML, JS, CSS).
+# We don't track this because it can always be regenerated from source code.
 dist/
 
-# .env = Our environment variables file containing database passwords and
+# .env = The environment variables file containing database passwords and
 # server configuration. This MUST be ignored because it contains secrets.
 # If someone got this file, they could connect to your database.
-# The .env.example file (without secrets) IS tracked as a template for others.
+# The .env.example file (without real secrets) IS tracked as a template.
 .env
 
 # *.log = Any file ending in ".log" — these are log files created by Node.js
 # or other tools when the app runs. They can grow very large, contain
-# sensitive information, and are different on every machine. Safe to ignore.
+# sensitive info, and differ per machine. Safe to ignore.
 *.log
 
 # .DS_Store = A hidden file that macOS creates in every folder you open.
-# It stores your Finder preferences (like icon positions and view settings).
-# It's Mac-specific junk that doesn't belong in the project.
+# It stores your Finder preferences (icon positions, view settings).
+# It's Mac-specific junk that doesn't belong in the project repo.
 .DS_Store

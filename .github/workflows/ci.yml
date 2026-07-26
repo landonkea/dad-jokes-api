@@ -1,59 +1,125 @@
+# =============================================================================
+# CI Workflow — Automatically tests every push and pull request
+# =============================================================================
+# WHAT: This is a GitHub Actions workflow that runs our test suite automatically
+#       every time code is pushed to main/dev or a PR targets main.
+# WHY:  Automated testing catches bugs before they reach production. Without
+#       this, you'd have to remember to run tests manually before every merge.
+# HOW:  GitHub spins up a fresh Ubuntu VM, installs Node.js, sets up a
+#       PostgreSQL database, installs dependencies, and runs all tests.
+# =============================================================================
+
+# "name" is the display name shown in the Actions tab of the GitHub repo.
 name: CI
 
+# "on" defines WHEN this workflow should run. GitHub will trigger it
+# automatically based on these conditions.
 on:
+
+  # Run when someone pushes (commits) to the "main" or "dev" branches.
   push:
     branches: [main, dev]
+
+  # Run when someone opens or updates a pull request targeting "main."
+  # This ensures PRs are tested before they can be merged.
   pull_request:
     branches: [main]
 
+# "jobs" defines one or more independent jobs that run in this workflow.
+# Each job runs on its own fresh virtual machine.
 jobs:
+
+  # "test" is the name of our job. It contains all the steps below.
   test:
+
+    # "runs-on" specifies the operating system for the virtual machine.
+    # "ubuntu-latest" gives us the newest Ubuntu LTS — the most common
+    # and best-supported environment for CI pipelines.
     runs-on: ubuntu-latest
 
+    # "services" starts additional Docker containers alongside our job.
+    # Here we spin up a PostgreSQL database for testing. GitHub Actions
+    # automatically manages these containers — starting, stopping, and
+    # cleaning them up when the job finishes.
     services:
+
+      # "postgres" is the service name (we reference it in connection vars).
       postgres:
+
+        # The PostgreSQL Docker image to use.
         image: postgres:16
+
+        # Environment variables passed to the PostgreSQL container.
+        # These create the test database and credentials on startup.
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: dad_jokes_test
+          POSTGRES_DB: dad_jokes_test   # Separate test DB (not "dad_jokes")
+
+        # "options" passes extra Docker flags to the service container.
+        # These health check options tell GitHub Actions to WAIT until
+        # PostgreSQL is fully ready before running our test steps.
+        # Without this, tests might try to connect before the DB is up.
         options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+          --health-cmd pg_isready          # Command to check if PG is ready
+          --health-interval 10s            # Check every 10 seconds
+          --health-timeout 5s              # Fail check after 5 seconds
+          --health-retries 5               # Try 5 times before giving up
+
+        # Map PostgreSQL's port inside the container to port 5432 on the
+        # GitHub Actions VM so our tests can connect to it via localhost.
         ports:
           - 5432:5432
 
+    # "steps" is the ordered list of tasks this job performs.
     steps:
+
+      # Step 1: Check out (download) the repository's source code.
+      # Without this, the VM has no code to test!
+      # "actions/checkout@v4" is the official GitHub checkout action.
       - uses: actions/checkout@v4
 
+      # Step 2: Install and set up Node.js 20 on the VM.
+      # "actions/setup-node@v4" is the official action that installs Node.js
+      # and adds it to the system PATH so we can use "node" and "npm" commands.
       - name: Use Node.js 20
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 20  # Specify exactly Node.js version 20
 
+      # Step 3: Install root-level dependencies (like "concurrently").
       - name: Install root dependencies
         run: npm install
 
+      # Step 4: Install server dependencies.
+      # "working-directory: server" makes the command run inside the server/
+      # folder, equivalent to "cd server && npm install".
       - name: Install server dependencies
         run: npm install
         working-directory: server
 
+      # Step 5: Install client dependencies.
       - name: Install client dependencies
         run: npm install
         working-directory: client
 
+      # Step 6: Run the server's test suite.
+      # "npm run test:run" executes vitest in single-run mode (no watch).
+      # The env block passes database connection details so tests can
+      # connect to the PostgreSQL service started above.
       - name: Run server tests
         run: npm run test:run
         working-directory: server
         env:
-          DB_HOST: localhost
+          DB_HOST: localhost       # Points to the PostgreSQL service above
           DB_PORT: 5432
           DB_USER: postgres
           DB_PASSWORD: postgres
-          DB_NAME: dad_jokes_test
+          DB_NAME: dad_jokes_test  # Uses the test database, not production!
 
+      # Step 7: Run the client's test suite.
+      # Client tests don't need a database — they test React components
+      # in isolation using jsdom (a fake browser environment).
       - name: Run client tests
         run: npm run test:run
         working-directory: client

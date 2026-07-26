@@ -1,12 +1,24 @@
+// Import the Pool class from the "pg" library to create database connections.
 import { Pool } from "pg";
+// Import our validated config object to get database credentials.
 import { config } from "../config/env";
 
+// Define an async function that initializes the database.
+// "async" lets us use "await" inside to wait for database operations to finish.
+// "Promise<void>" means this function doesn't return a value — it just does work.
 async function initDB(): Promise<void> {
+  // Create a temporary connection pool connected to the default "postgres" database.
+  // We need this admin connection because you can't create a database while connected to it.
+  // Think of it like needing to stand outside a house before you can build one.
   const adminPool = new Pool({
+    // The PostgreSQL username to authenticate with.
     user: config.dbUser,
+    // The "postgres" database is PostgreSQL's default system database — it's always there.
+    // We connect to it temporarily to create our actual application database.
     database: "postgres",
   });
 
+  // Store the desired database name in a variable for easy reference.
   const dbName = config.dbName;
 
   // The "try" block is where we do our work. If anything goes wrong, the "catch" block handles it.
@@ -19,7 +31,9 @@ async function initDB(): Promise<void> {
     // "WHERE datname = $1" filters to only the database whose name matches our variable.
     // The $1 is a "parameter placeholder" — it's replaced by [dbName] safely, preventing SQL injection attacks.
     const exists = await adminPool.query(
+      // The SQL query string — $1 will be replaced by the first item in the array below.
       "SELECT 1 FROM pg_database WHERE datname = $1",
+      // The array of values to safely insert into the query's placeholders.
       [dbName]
     );
 
@@ -43,8 +57,12 @@ async function initDB(): Promise<void> {
     await adminPool.end();
   }
 
+  // Now that we know the database exists, create a NEW pool connected to our actual app database.
+  // We can't reuse the adminPool because it's connected to "postgres", not our app database.
   const appPool = new Pool({
+    // The PostgreSQL username.
     user: config.dbUser,
+    // Connect to our actual application database (the one we just ensured exists).
     database: dbName,
   });
 
@@ -53,6 +71,7 @@ async function initDB(): Promise<void> {
     // "CREATE TABLE IF NOT EXISTS" means "make this table, but don't error if it already exists."
     // Think of a table like a spreadsheet — it has columns (like headers) and rows (like data entries).
     await appPool.query(`
+      // This creates the "jokes" table where all our dad jokes will be stored.
       CREATE TABLE IF NOT EXISTS jokes (
         // "id SERIAL PRIMARY KEY" means:
         // - id: the column name
@@ -85,7 +104,10 @@ async function initDB(): Promise<void> {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
+      // This creates the "votes" table to track individual upvotes and downvotes.
+      // Separating votes from jokes lets us record every vote while keeping the jokes table clean.
       CREATE TABLE IF NOT EXISTS votes (
+        // Auto-incrementing unique ID for each vote, just like the jokes table.
         id SERIAL PRIMARY KEY,
         // "REFERENCES jokes(id) ON DELETE CASCADE" means:
         // - This column links to the "id" column in the "jokes" table.
