@@ -23,19 +23,12 @@ export const Marquee: React.FC = () => {
   // when the first set scrolls off the left side, the duplicate is already scrolling in from the right.
   const items = [...TICKER_JOKES, ...TICKER_JOKES];
   return (
-    {/* A wrapper div that hides overflow and contains the scrolling track */}
     <div className="marquee-wrap">
-      {/* The inner track that moves horizontally via CSS animation. The duplicated items make it seamless. */}
       <div className="marquee-track">
-        {/* Loop through all the items (original + duplicate) and render each as a span */}
         {items.map((j, i) => (
-          {/* A single joke in the ticker: setup → punchline */}
           <span key={i} className="marquee-item">
-            {/* The setup part of the joke, slightly muted */}
             <span className="mq-setup">{j.setup}</span>
-            {/* An arrow pointing from setup to punchline */}
             <span className="mq-arrow">→</span>
-            {/* The punchline part of the joke, slightly brighter */}
             <span className="mq-punchline">{j.punchline}</span>
           </span>
         ))}

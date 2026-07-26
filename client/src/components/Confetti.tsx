@@ -50,16 +50,11 @@ export const Confetti: React.FC<ConfettiProps> = ({ trigger, onComplete }) => {
 
   // Render the confetti overlay with all the falling pieces
   return (
-    {/* A fixed/absolute container that covers the viewport and holds all confetti pieces */}
     <div className="confetti-container">
-      {/* Loop through each piece and render a small colored div */}
       {pieces.map((p) => (
-        {/* Each confetti piece is a small colored square or circle that falls using CSS animation */}
         <div
-          {/* Unique key for React to track each piece efficiently */}
           key={p.id}
           className="confetti-piece"
-          {/* Each piece gets unique inline styles for position, size, color, shape, and animation timing */}
           style={{
             left: `${p.left}%`,                  // Horizontal starting position on the screen
             width: p.size,                       // Width in pixels

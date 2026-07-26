@@ -94,7 +94,6 @@ export const JokeSubmitter: React.FC<JokeSubmitterProps> = ({ onJokeSubmitted })
       </p>
 
       <form onSubmit={handleSubmit} className="submitter-form">
-        {/* Setup input group */}
         <div className="form-group">
           <label htmlFor="setup">Setup (The wind-up)</label>
           <input
@@ -107,8 +106,6 @@ export const JokeSubmitter: React.FC<JokeSubmitterProps> = ({ onJokeSubmitted })
             maxLength={500}
           />
         </div>
-
-        {/* Punchline input group */}
         <div className="form-group">
           <label htmlFor="punchline">Punchline (The groan inducer)</label>
           <input
@@ -121,8 +118,6 @@ export const JokeSubmitter: React.FC<JokeSubmitterProps> = ({ onJokeSubmitted })
             maxLength={500}
           />
         </div>
-
-        {/* Category dropdown and author name input, side by side */}
         <div className="form-row">
           <div className="form-group">
             <label htmlFor="category">Category</label>
@@ -155,8 +150,6 @@ export const JokeSubmitter: React.FC<JokeSubmitterProps> = ({ onJokeSubmitted })
             />
           </div>
         </div>
-
-        {/* Groan level slider */}
         <div className="form-group">
           <label htmlFor="groan">
             Groan Level: {groanLevel}/10
@@ -172,8 +165,6 @@ export const JokeSubmitter: React.FC<JokeSubmitterProps> = ({ onJokeSubmitted })
             className="groan-slider"
           />
         </div>
-
-        {/* Submit button — disabled while submitting or if required fields are empty */}
         <button
           type="submit"
           className="btn btn-submit"
@@ -181,8 +172,6 @@ export const JokeSubmitter: React.FC<JokeSubmitterProps> = ({ onJokeSubmitted })
         >
           {submitting ? "Consulting the Dad Council..." : "🎤 Drop the Punchline"}
         </button>
-
-        {/* If there's a result message, show it below the button */}
         {result && (
           <div className={`submitter-result ${result.success ? "success" : "error"}`}>
             {result.message}

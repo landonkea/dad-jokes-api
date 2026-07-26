@@ -113,13 +113,9 @@ export const JokeCard: React.FC = () => {
   // If we're still loading a joke, show a loading spinner instead of the card
   if (loading) {
     return (
-      {/* A styled card container for the loading state */}
       <div className="joke-card">
-        {/* A centered loading message with a spinning animation */}
         <div className="joke-loading">
-          {/* The CSS-animated spinner element (a rotating circle) */}
           <div className="spinner" />
-          {/* A funny loading message to keep the user entertained while waiting */}
           <p>Rummaging through dad's joke vault...</p>
         </div>
       </div>
@@ -129,16 +125,12 @@ export const JokeCard: React.FC = () => {
   // If an error occurred while fetching, show an error message with a retry button
   if (error) {
     return (
-      {/* A card container with an error-specific class for red/error styling */}
       <div className="joke-card joke-error">
-        {/* Display the error message with a shocked emoji */}
         <p>😱 {error}</p>
-        {/* A humorous explanation for why the error might have happened */}
         <p className="joke-error-sub">
           The joke server is probably on a dad break. You know how they are — 30
           minutes in the garage and suddenly they've invented a new tool.
         </p>
-        {/* A button to retry fetching a joke. Calls handleNewJoke which resets state and fetches a new joke. */}
         <button onClick={handleNewJoke} className="btn btn-primary">
           Try Again (I believe in you)
         </button>
@@ -151,86 +143,51 @@ export const JokeCard: React.FC = () => {
 
   // Main joke card rendering — shown when we have a loaded joke with no errors
   return (
-    {/* The card container. key={joke.id} forces React to re-mount the card when a new joke loads, resetting animations. */}
     <div className="joke-card" key={joke.id}>
-      {/* The confetti explosion overlay — trigger controls when it fires, onComplete resets it */}
       <Confetti trigger={confettiTrigger} onComplete={() => setConfettiTrigger(false)} />
-      {/* The toast notification that appears temporarily at the top of the card */}
       <Toast message={toastMsg} type={toastType} visible={toastVisible} />
-
-      {/* A colored badge showing which category this joke belongs to (e.g., "puns", "animals") */}
       <div className="joke-category-badge">{joke.category}</div>
-
-      {/* The "groan meter" — a visual representation of how groan-worthy the joke is */}
       <div className="joke-groan-meter">
-        {/* Label text */}
         <span>Groan Level: </span>
-        {/* Show a 😫 emoji for each point in the groan level (e.g., level 7 = 7 emojis) */}
         <span className="groan-eyes">
-          {/* Array.from creates an array of the right length, then join combines them into one string */}
           {Array.from({ length: joke.groan_level }, (_, i) => "😫").join("")}
         </span>
-        {/* Show the numeric value like "7/10" next to the emojis */}
         <span className="groan-number">{joke.groan_level}/10</span>
       </div>
-
-      {/* The joke's setup line — the first part that builds anticipation */}
       <div className="joke-setup">
-        {/* A small label identifying this as the setup */}
         <span className="joke-label">Setup:</span>
-        {/* The actual setup text */}
         <p>{joke.setup}</p>
       </div>
-
-      {/* Conditional rendering: if punchline is hidden, show the reveal button; otherwise show the punchline */}
       {!showPunchline ? (
-        {/* The reveal button — clicking it shows the punchline */}
         <button className="btn btn-punchline" onClick={handleReveal}>
           🥁 Reveal the Punchline 🥁
         </button>
       ) : (
-        {/* The punchline section, shown after the user clicks reveal */}
         <div className="joke-punchline reveal">
-          {/* A small label identifying this as the punchline */}
           <span className="joke-label">Punchline:</span>
-          {/* The actual punchline text, styled with a special class for a reveal animation */}
           <p className="punchline-text">{joke.punchline}</p>
-          {/* A random reaction message based on how groan-worthy the joke is */}
           <p className="joke-reaction">{getReaction(joke.groan_level)}</p>
         </div>
       )}
-
-      {/* The bottom section of the card with voting buttons and the author's name */}
       <div className="joke-footer">
-        {/* The voting buttons container */}
         <div className="joke-votes">
-          {/* The upvote button — adds 1 to the displayed count if the user just upvoted */}
           <button
-            {/* Apply the "voted" CSS class if the user already upvoted (gives it a highlighted look) */}
             className={`vote-btn upvote ${voted === "up" ? "voted" : ""}`}
-            {/* When clicked, call handleVote with "up" as the vote type */}
             onClick={() => handleVote("up")}
-            {/* Disable the button if the user already voted or a vote is in progress */}
             disabled={!!voted || voteLoading}
           >
-            {/* Show the thumbs up emoji and the current upvote count (plus 1 if user just upvoted) */}
             👍 {joke.upvotes + (voted === "up" ? 1 : 0)}
           </button>
-          {/* The downvote button — same logic as upvote but for downvotes */}
           <button
             className={`vote-btn downvote ${voted === "down" ? "voted" : ""}`}
             onClick={() => handleVote("down")}
             disabled={!!voted || voteLoading}
           >
-            {/* Show the thumbs down emoji and the current downvote count (plus 1 if user just downvoted) */}
             👎 {joke.downvotes + (voted === "down" ? 1 : 0)}
           </button>
         </div>
-        {/* Show who submitted the joke, prefixed with an em dash for a clean look */}
         <span className="joke-author">— {joke.author}</span>
       </div>
-
-      {/* A button to fetch and display a different random joke */}
       <button onClick={handleNewJoke} className="btn btn-secondary">
         🔄 Another One (Dj Khaled voice)
       </button>

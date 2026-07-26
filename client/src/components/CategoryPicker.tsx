@@ -27,33 +27,21 @@ export const CategoryPicker: React.FC<CategoryPickerProps> = ({
   }, []); // No dependencies: run once on mount
 
   return (
-    {/* A wrapper div for the entire category picker section */}
     <div className="category-picker">
-      {/* A heading that tells the user what this section is for */}
       <h3 className="category-title">🗂️ Pick Your Pun Category</h3>
-      {/* A flex container that holds all the category filter buttons in a row */}
       <div className="category-buttons">
-        {/* The "All Groans" button — shows all jokes regardless of category */}
         <button
-          {/* Apply the "active" CSS class (highlighted style) when no category is selected */}
           className={`category-btn ${!selected ? "active" : ""}`}
-          {/* Clicking "All" passes undefined to the parent, which means "show all categories" */}
           onClick={() => onChange(undefined)}
         >
           All Groans
         </button>
-        {/* Loop through each category from the server and render a button for it */}
         {categories.map((cat) => (
-          {/* A button for each individual category */}
           <button
-            {/* React needs a unique key for each item in a list for efficient updates */}
             key={cat.category}
-            {/* Highlight this button if its category matches the currently selected one */}
             className={`category-btn ${selected === cat.category ? "active" : ""}`}
-            {/* When clicked, tell the parent which category was selected */}
             onClick={() => onChange(cat.category)}
           >
-            {/* Show the category name and how many jokes are in it, like "puns (12)" */}
             {cat.category} ({cat.count})
           </button>
         ))}

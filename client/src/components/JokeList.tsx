@@ -69,11 +69,8 @@ export const JokeList: React.FC<JokeListProps> = ({ category, sort }) => {
   // If we're still loading jokes, show a loading state instead of the list
   if (loading)
     return (
-      {/* A centered loading container with a spinner */}
       <div className="joke-list-loading">
-        {/* The CSS-animated spinning circle */}
         <div className="spinner" />
-        {/* A funny loading message */}
         <p>Flipping through the dad joke binder...</p>
       </div>
     );
@@ -81,11 +78,8 @@ export const JokeList: React.FC<JokeListProps> = ({ category, sort }) => {
   // If an error occurred, show the error message instead of the list
   if (error)
     return (
-      {/* Error display with a red/sad styling class */}
       <div className="joke-list-error">
-        {/* Show the error message with a frustrated emoji */}
         <p>😫 {error}</p>
-        {/* A humorous secondary message */}
         <p style={{ fontSize: "0.85rem", marginTop: "8px" }}>
           Even the joke list is having a bad day.
         </p>
@@ -94,50 +88,32 @@ export const JokeList: React.FC<JokeListProps> = ({ category, sort }) => {
 
   // Main rendering: the list of jokes (or an empty state message)
   return (
-    {/* Container for the list of joke items */}
     <div className="joke-list">
-      {/* If the array is empty (no jokes match the filters), show a message */}
       {jokes.length === 0 && (
         <p className="joke-list-empty">
           No jokes found. Even the database is speechless. 🤐
         </p>
       )}
-      {/* Loop through each joke and render a list item for it */}
       {jokes.map((joke) => (
-        {/* A single joke item in the list. key={joke.id} helps React track which items change. */}
         <div key={joke.id} className="joke-list-item">
-          {/* The clickable header that shows the setup and an expand/collapse arrow */}
-          {/* Clicking toggles between expanding and collapsing the punchline details */}
           <div className="joke-list-item-header" onClick={() => setExpandedId(expandedId === joke.id ? null : joke.id)}>
-            {/* Show the joke's setup text as a preview */}
             <span className="joke-list-setup">{joke.setup}</span>
-            {/* Show a right-pointing arrow if collapsed, or a down-pointing arrow if expanded */}
             <span className="joke-list-expand">{expandedId === joke.id ? "▼" : "▶"}</span>
           </div>
-          {/* Only render the expanded details if this joke's ID matches expandedId */}
           {expandedId === joke.id && (
-            {/* The body section with the punchline and metadata, only visible when expanded */}
             <div className="joke-list-item-body">
-              {/* Show the punchline with a speech bubble emoji */}
               <p className="joke-list-punchline">💬 {joke.punchline}</p>
-              {/* A row of metadata: category, groan level, votes, and author */}
               <div className="joke-list-meta">
-                {/* Show which category this joke belongs to */}
                 <span className="joke-list-category">{joke.category}</span>
-                {/* Show the groan level rating */}
                 <span className="joke-list-groan">Groan: {joke.groan_level}/10</span>
-                {/* Small upvote and downvote buttons for voting directly in the list */}
                 <div className="joke-list-votes">
-                  {/* Small upvote button — sends an upvote to the server */}
                   <button className="vote-btn-sm" onClick={() => handleVote(joke.id, "up")}>
                     👍 {joke.upvotes}
                   </button>
-                  {/* Small downvote button — sends a downvote to the server */}
                   <button className="vote-btn-sm" onClick={() => handleVote(joke.id, "down")}>
                     👎 {joke.downvotes}
                   </button>
                 </div>
-                {/* Show who wrote the joke */}
                 <span className="joke-list-author">— {joke.author}</span>
               </div>
             </div>
