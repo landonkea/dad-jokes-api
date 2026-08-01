@@ -70,66 +70,60 @@ async function initDB(): Promise<void> {
     // This big SQL string creates our tables and indexes.
     // "CREATE TABLE IF NOT EXISTS" means "make this table, but don't error if it already exists."
     // Think of a table like a spreadsheet — it has columns (like headers) and rows (like data entries).
+    //
+    // NOTE: Comments inside SQL use "--" (double dash), NOT "//" (which PostgreSQL doesn't support).
     await appPool.query(`
-      // This creates the "jokes" table where all our dad jokes will be stored.
+      -- This creates the "jokes" table where all our dad jokes will be stored.
       CREATE TABLE IF NOT EXISTS jokes (
-        // "id SERIAL PRIMARY KEY" means:
-        // - id: the column name
-        // - SERIAL: automatically generates a unique number for each new row (1, 2, 3, 4...)
-        // - PRIMARY KEY: this is the unique identifier — no two rows can have the same id.
-        // It's like each joke gets a unique ticket number.
+        -- id SERIAL PRIMARY KEY means:
+        -- - id: the column name
+        -- - SERIAL: automatically generates a unique number for each new row (1, 2, 3, 4...)
+        -- - PRIMARY KEY: this is the unique identifier — no two rows can have the same id.
         id SERIAL PRIMARY KEY,
-        // "setup TEXT NOT NULL" means:
-        // - The setup can be any length of text (short or long).
-        // - NOT NULL means this field CANNOT be empty — every joke MUST have a setup.
+        -- "setup TEXT NOT NULL" means:
+        -- - The setup can be any length of text (short or long).
+        -- - NOT NULL means this field CANNOT be empty — every joke MUST have a setup.
         setup TEXT NOT NULL,
-        // Same for punchline — every joke must have a punchline, and it can be any length.
+        -- Same for punchline — every joke must have a punchline, and it can be any length.
         punchline TEXT NOT NULL,
-        // "VARCHAR(50)" means the category can be up to 50 characters long.
-        // "DEFAULT 'classic'" means if no category is provided, use "classic" automatically.
+        -- "VARCHAR(50)" means the category can be up to 50 characters long.
+        -- "DEFAULT 'classic'" means if no category is provided, use "classic" automatically.
         category VARCHAR(50) DEFAULT 'classic',
-        // "INTEGER DEFAULT 5" means a whole number that defaults to 5.
-        // "CHECK (groan_level >= 1 AND groan_level <= 10)" means the database will REJECT
-        // any value outside the range 1-10. It's like a bouncer at a club — only valid numbers get in.
+        -- "INTEGER DEFAULT 5" means a whole number that defaults to 5.
+        -- "CHECK (groan_level >= 1 AND groan_level <= 10)" enforces the range in the database.
         groan_level INTEGER DEFAULT 5 CHECK (groan_level >= 1 AND groan_level <= 10),
-        // Upvotes start at 0. They go up by 1 each time someone likes the joke.
+        -- Upvotes start at 0. They go up by 1 each time someone likes the joke.
         upvotes INTEGER DEFAULT 0,
-        // Downvotes also start at 0. They go up by 1 each time someone dislikes the joke.
+        -- Downvotes also start at 0. They go up by 1 each time someone dislikes the joke.
         downvotes INTEGER DEFAULT 0,
-        // The author's name can be up to 100 characters. If no name is given, it defaults to "Anonymous Dad".
+        -- The author's name can be up to 100 characters. If no name, defaults to "Anonymous Dad".
         author VARCHAR(100) DEFAULT 'Anonymous Dad',
-        // "TIMESTAMP DEFAULT CURRENT_TIMESTAMP" means:
-        // Automatically records the exact date and time when this joke was inserted into the database.
-        // We don't have to set this manually — the database does it for us.
+        -- "TIMESTAMP DEFAULT CURRENT_TIMESTAMP" automatically records the date/time on insert.
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
-      // This creates the "votes" table to track individual upvotes and downvotes.
-      // Separating votes from jokes lets us record every vote while keeping the jokes table clean.
+      -- This creates the "votes" table to track individual upvotes and downvotes.
+      -- Separating votes from jokes lets us record every vote while keeping jokes table clean.
       CREATE TABLE IF NOT EXISTS votes (
-        // Auto-incrementing unique ID for each vote, just like the jokes table.
+        -- Auto-incrementing unique ID for each vote, just like the jokes table.
         id SERIAL PRIMARY KEY,
-        // "REFERENCES jokes(id) ON DELETE CASCADE" means:
-        // - This column links to the "id" column in the "jokes" table.
-        // - "ON DELETE CASCADE" means: if a joke is deleted, automatically delete all its votes too.
-        // This keeps things clean — no orphan votes pointing to deleted jokes.
+        -- "REFERENCES jokes(id) ON DELETE CASCADE" means:
+        -- - Links to the "id" column in the "jokes" table.
+        -- - If the joke is deleted, all its votes are deleted too (no orphaned votes).
         joke_id INTEGER REFERENCES jokes(id) ON DELETE CASCADE,
-        // The vote type can only be 'up' or 'down' — nothing else is allowed.
-        // "CHECK (vote_type IN ('up', 'down'))" enforces this rule in the database itself.
+        -- The vote type can only be 'up' or 'down' — CHECK enforces this in the DB.
         vote_type VARCHAR(4) NOT NULL CHECK (vote_type IN ('up', 'down')),
-        // When was this vote cast? Automatically recorded.
+        -- When was this vote cast? Automatically recorded.
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
-      // INDEXES are like a table of contents in a book — they help the database find data faster.
-      // Without indexes, the database would have to scan every single row (like reading every page).
-      // "CREATE INDEX IF NOT EXISTS" means: make this index, but don't error if it already exists.
-      // This index speeds up searches by "category" (e.g., "give me all puns").
-      CREATE INDEX IF NOT EXISTS idx_jokes_category ON jokes(category),
-      // This index speeds up sorting/filtering by "groan_level" (e.g., "give me the groaniest jokes").
-      CREATE INDEX IF NOT EXISTS idx_jokes_groan_level ON jokes(groan_level),
-      // This index speeds up looking up all votes for a specific joke.
-      // When you click on a joke and want to see its votes, this makes it fast.
+      -- INDEXES are like a table of contents — they help the database find data faster.
+      -- "CREATE INDEX IF NOT EXISTS" makes the index but doesn't error if it already exists.
+      -- This index speeds up searches by "category".
+      CREATE INDEX IF NOT EXISTS idx_jokes_category ON jokes(category);
+      -- This index speeds up sorting/filtering by "groan_level".
+      CREATE INDEX IF NOT EXISTS idx_jokes_groan_level ON jokes(groan_level);
+      -- This index speeds up looking up all votes for a specific joke.
       CREATE INDEX IF NOT EXISTS idx_votes_joke_id ON votes(joke_id);
     `);
 
