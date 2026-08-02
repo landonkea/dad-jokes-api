@@ -19,7 +19,7 @@
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
-    "@types/node": "^20.19.43",
+    "@types/node": "^26.1.2",
     "@types/pg": "^8.10.9",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
