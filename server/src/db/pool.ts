@@ -13,6 +13,18 @@ const pool = new Pool({
   user: config.dbUser,
   // The name of the specific database to connect to on the PostgreSQL server.
   database: config.dbName,
+  // The database host (server address), e.g. "localhost" locally or "db"
+  // inside docker-compose, where it resolves to the postgres service via
+  // Docker's internal DNS. Without this, "pg" defaults to "localhost",
+  // which inside a container refers to the container itself — not the
+  // separate "db" service — so the connection would fail.
+  host: config.dbHost,
+  // The port PostgreSQL is listening on (defaults to 5432).
+  port: config.dbPort,
+  // The password to authenticate with. Falls back to undefined if not set,
+  // which lets "pg" fall back to its own defaults (e.g. trust auth, or the
+  // PGPASSWORD env var) for local setups that don't require one.
+  password: config.dbPassword,
 });
 
 // Register an error handler for the pool.

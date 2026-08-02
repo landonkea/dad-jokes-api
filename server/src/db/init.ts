@@ -16,6 +16,14 @@ async function initDB(): Promise<void> {
     // The "postgres" database is PostgreSQL's default system database — it's always there.
     // We connect to it temporarily to create our actual application database.
     database: "postgres",
+    // The database host — must match the app pool's config, otherwise this
+    // admin connection tries "localhost" even when running against a
+    // separate "db" container (e.g. in docker-compose) and fails to connect.
+    host: config.dbHost,
+    // The port PostgreSQL is listening on.
+    port: config.dbPort,
+    // The password to authenticate with.
+    password: config.dbPassword,
   });
 
   // Store the desired database name in a variable for easy reference.
@@ -64,6 +72,12 @@ async function initDB(): Promise<void> {
     user: config.dbUser,
     // Connect to our actual application database (the one we just ensured exists).
     database: dbName,
+    // The database host — same reasoning as adminPool above.
+    host: config.dbHost,
+    // The port PostgreSQL is listening on.
+    port: config.dbPort,
+    // The password to authenticate with.
+    password: config.dbPassword,
   });
 
   try {

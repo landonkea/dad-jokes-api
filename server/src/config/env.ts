@@ -38,6 +38,12 @@ export const config = {
   // The database port. "parseInt" converts the string "5432" into the number 5432.
   // Falls back to 5432 (PostgreSQL's default port) if not specified.
   dbPort: parseInt(process.env.DB_PORT || "5432"),
+  // The database password. Not in "required" above because local setups
+  // (e.g. trust-auth Postgres on your own machine) often don't need one.
+  // Falls back to "undefined" if not set, which lets "pg" use its own
+  // fallback behavior instead of trying to authenticate with the literal
+  // string "undefined".
+  dbPassword: process.env.DB_PASSWORD || undefined,
   // The port this Express server listens on. Falls back to 3001 if not specified.
   // 3001 is a common choice for backend servers (3000 is often used for frontend dev servers).
   port: parseInt(process.env.PORT || "3001"),
