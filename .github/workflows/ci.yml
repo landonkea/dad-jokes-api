@@ -103,6 +103,19 @@ jobs:
         run: npm install
         working-directory: client
 
+      # Step 6a: Typecheck the server.
+      # "npx tsc --noEmit" runs the TypeScript compiler in check-only mode —
+      # it reports type errors without writing any output files. This catches
+      # type mistakes that tests alone might miss.
+      - name: Typecheck server
+        run: npx tsc --noEmit
+        working-directory: server
+
+      # Step 6b: Typecheck the client.
+      - name: Typecheck client
+        run: npx tsc --noEmit
+        working-directory: client
+
       # Step 6: Run the server's test suite.
       # "npm run test:run" executes vitest in single-run mode (no watch).
       # The env block passes database connection details so tests can

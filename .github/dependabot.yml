@@ -1,0 +1,44 @@
+# WHAT IS THIS FILE?
+# This is Dependabot's configuration file. Dependabot is a GitHub feature
+# that automatically checks whether your project's dependencies (npm
+# packages, GitHub Actions, etc.) have newer versions available, and opens
+# pull requests to bump them for you. It lives at .github/dependabot.yml
+# because GitHub looks for it at that exact path in every repo — you don't
+# run this file yourself, GitHub's servers read it on a schedule.
+
+# `version: 2` tells GitHub which Dependabot configuration schema (format
+# version) this file follows — version 2 is the current one.
+version: 2
+# `updates:` is a top-level YAML key whose value is a LIST of "update
+# configs" — each list item (marked with a leading `-`) describes one
+# dependency ecosystem Dependabot should watch and how often to check it.
+updates:
+# `- package-ecosystem: npm` starts the first list item, for the server's
+# dependencies (as listed in server/package.json and server/package-lock.json).
+- package-ecosystem: npm
+  # `directory: "/server"` tells Dependabot where to look for the
+  # package.json/package-lock.json — the server subfolder, since the
+  # server and client have independent, separately-versioned dependencies.
+  directory: "/server"
+  # `schedule:` is a nested key describing how often Dependabot should run
+  # its check for this ecosystem.
+  schedule:
+    # `interval: weekly` means Dependabot checks for new npm package
+    # versions once a week.
+    interval: weekly
+  # `open-pull-requests-limit: 10` caps how many update pull requests
+  # Dependabot will have open at once FOR THIS ecosystem — once 10 are
+  # open, it won't create more until some get merged/closed.
+  open-pull-requests-limit: 10
+# Second update rule: manages the client's npm dependencies (as listed in
+# client/package.json and client/package-lock.json).
+- package-ecosystem: npm
+  # `directory: "/client"` points Dependabot at the client subfolder's own
+  # package.json/package-lock.json.
+  directory: "/client"
+  # Same nested schedule key as the server entry above.
+  schedule:
+    # Check for new npm package versions once a week.
+    interval: weekly
+  # Same PR-flooding guard, scoped to this ecosystem's own pull requests.
+  open-pull-requests-limit: 10
