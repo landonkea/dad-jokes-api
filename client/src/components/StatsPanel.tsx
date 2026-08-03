@@ -15,6 +15,7 @@ interface Stats {
     upvotes: number;
   } | null;               // null if no jokes have been voted on yet
   category_counts: { category: string; count: number }[];  // Array of how many jokes are in each category
+  pending_count: number;  // How many submissions are currently awaiting moderation
 }
 
 
@@ -54,6 +55,7 @@ export const StatsPanel: React.FC = () => {
           { value: stats.total_votes || 0, label: "Total Votes", emoji: "🗳️" }, // Card 2: vote count (0 if undefined)
           { value: stats.avg_groan_level || 0, label: "Avg Groan", emoji: "😫" }, // Card 3: average groan level
           { value: stats.category_counts.length, label: "Categories", emoji: "📂" }, // Card 4: number of categories
+          { value: stats.pending_count || 0, label: "Awaiting Review", emoji: "🕵️" }, // Card 5: moderation queue size
         ].map((s, i) => (
           <div className="stat-card" key={i}>
             <span className="stat-number">{s.value}</span>

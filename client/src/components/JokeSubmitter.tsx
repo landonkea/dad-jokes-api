@@ -57,10 +57,12 @@ export const JokeSubmitter: React.FC<JokeSubmitterProps> = ({ onJokeSubmitted })
         groan_level: groanLevel,           // The groan rating from the slider
         author: author.trim() || "Anonymous Dad", // Use entered name, or default if empty
       });
-      // Store a success message to display below the form
+      // Store a success message to display below the form. The joke doesn't go
+      // live immediately — it lands in the moderation queue (see ModerationQueue)
+      // as "pending" until an admin approves it, so set expectations accordingly.
       setResult({
         success: true,
-        message: "🎉 Joke submitted! The Groan Council will convene at sundown.",
+        message: "🎉 Joke submitted! It's awaiting review by the Groan Council before it goes live.",
       });
       // Show the success toast notification
       setToastVisible(true);

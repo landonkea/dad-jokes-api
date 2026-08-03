@@ -31,6 +31,12 @@ export interface Joke {
   created_at: Date;
   // The name of the person who submitted this joke (like "Dad #1").
   author: string;
+  // Moderation status. New public submissions start "pending" and only appear in the
+  // public API once an admin approves them via POST /:id/approve. Rows created before
+  // this column existed (and anything inserted directly, like seed data) default to
+  // "approved". "rejected" jokes are kept (not deleted) so the moderation queue has a
+  // record of what was turned down and why.
+  status: "pending" | "approved" | "rejected";
 }
 
 // This is the shape of data that someone sends when they want to CREATE a new joke.
@@ -104,4 +110,6 @@ export interface StatsResponse {
   // An array (list) of objects, where each object tells you a category name and how many jokes are in it.
   // For example: [{ category: "puns", count: 5 }, { category: "animals", count: 3 }]
   category_counts: { category: string; count: number }[];
+  // How many submissions are currently sitting in the moderation queue (status = 'pending').
+  pending_count: number;
 }

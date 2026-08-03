@@ -12,6 +12,8 @@ import { CategoryPicker } from "./components/CategoryPicker";
 import { JokeSubmitter } from "./components/JokeSubmitter";
 // Import the StatsPanel component — displays statistics and analytics about all the jokes
 import { StatsPanel } from "./components/StatsPanel";
+// Import the ModerationQueue component — the admin-only panel for approving/rejecting submissions
+import { ModerationQueue } from "./components/ModerationQueue";
 // Import the Particles component — renders floating emoji particles in the background for visual flair
 import { Particles } from "./components/Particles";
 // Import the Marquee component — a scrolling ticker at the top that shows joke setups and punchlines
@@ -19,8 +21,8 @@ import { Marquee } from "./components/Marquee";
 // Import the ThemeToggle component — a button that switches between dark and light mode
 import { ThemeToggle } from "./components/ThemeToggle";
 
-// Define a TypeScript type that can only be one of these four tab names — prevents typos and gives autocomplete
-type Tab = "random" | "browse" | "submit" | "stats";
+// Define a TypeScript type that can only be one of these five tab names — prevents typos and gives autocomplete
+type Tab = "random" | "browse" | "submit" | "stats" | "moderate";
 
 // Create an object that maps each tab name to a funny tagline shown below the nav bar
 // Record<Tab, string> means "an object where every key is a Tab and every value is a string"
@@ -29,6 +31,7 @@ const TAB_TAGLINES: Record<Tab, string> = {
   browse: "The entire encyclopedia of groans",
   submit: "Unleash your inner father figure",
   stats: "How many people have suffered?",
+  moderate: "Where dad jokes go to be judged",
 };
 
 // Define the App component as a React Functional Component (React.FC)
@@ -55,6 +58,7 @@ const App: React.FC = () => {
     { id: "browse", label: "Browse Jokes", emoji: "📚" },
     { id: "submit", label: "Submit Joke", emoji: "✍️" },
     { id: "stats", label: "Stats", emoji: "📊" },
+    { id: "moderate", label: "Moderate", emoji: "🕵️" },
   ];
 
   // Return the JSX that makes up the entire page
@@ -139,6 +143,9 @@ const App: React.FC = () => {
 
         {/* Only render the stats dashboard if the "stats" tab is active */}
         {activeTab === "stats" && <StatsPanel />}
+
+        {/* Only render the moderation queue if the "moderate" tab is active */}
+        {activeTab === "moderate" && <ModerationQueue />}
       </main>
 
       {/* The footer at the bottom of the page */}

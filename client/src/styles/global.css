@@ -2168,3 +2168,86 @@ body::before {
     animation-duration: 25s;
   }
 }
+
+/* =============================================================================
+   MODERATION QUEUE — admin panel for approving/rejecting pending submissions
+   =============================================================================
+   Reuses the same card look as .joke-submitter/.stats-panel so it feels like
+   part of the same app, plus a couple of small additions for the token form
+   and the approve/reject action row on each queued joke.
+   ============================================================================= */
+
+/* The outer card container — same glassy look as the submitter/stats cards. */
+.moderation-queue {
+  background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--border-radius);
+  padding: 44px 36px;
+  box-shadow: var(--shadow-lg);
+  animation: cardAppear 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* The admin token entry row: input + "Load Queue" button side by side. */
+.moderation-token-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin: 20px 0 28px;
+  flex-wrap: wrap;
+}
+
+.moderation-token-form .form-group {
+  flex: 1;
+  min-width: 200px;
+}
+
+.moderation-token-form .btn {
+  margin-top: 0;
+  width: auto;
+  white-space: nowrap;
+}
+
+/* Each pending joke's card — a bit more breathing room than the compact browse list. */
+.moderation-item .moderation-item-body {
+  display: block;
+}
+
+.moderation-item .joke-list-punchline {
+  margin-bottom: 8px;
+}
+
+/* Approve/Reject buttons sit in their own row below the joke's meta info. */
+.moderation-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.moderation-actions .btn {
+  width: auto;
+  margin-top: 0;
+  padding: 8px 18px;
+  font-size: 0.9rem;
+}
+
+/* Approve leans green, reject leans pink/red — matching the app's existing
+   success/danger color language (see .submitter-result.success/.error). */
+.moderation-approve:hover {
+  border-color: rgba(46, 204, 113, 0.4);
+  color: var(--success);
+  box-shadow: 0 6px 20px rgba(46, 204, 113, 0.15);
+}
+
+.moderation-reject:hover {
+  border-color: rgba(255, 46, 99, 0.4);
+  color: var(--neon-pink);
+  box-shadow: 0 6px 20px rgba(255, 46, 99, 0.15);
+}
+
+.moderation-actions .btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}

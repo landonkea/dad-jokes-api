@@ -14,6 +14,7 @@ export interface Joke {
   downvotes: number;    // How many times people have voted this joke down
   created_at: string;   // The date/time the joke was submitted, as a string
   author: string;       // The name (or alias) of who submitted the joke
+  status: "pending" | "approved" | "rejected"; // Moderation state — only "approved" jokes are publicly visible
 }
 
 // Define a generic wrapper for all API responses. The API always sends back success, data, and sometimes error.
@@ -160,6 +161,7 @@ export async function fetchStats(): Promise<{
   avg_groan_level: number;                          // The average groan level across all jokes
   most_upvoted: Joke | null;                        // The single most upvoted joke, or null if no votes yet
   category_counts: { category: string; count: number }[];  // How many jokes are in each category
+  pending_count: number;                            // How many submissions are awaiting moderation
 }> {
   // Send a GET request to the stats endpoint
   const res = await fetch(`${API_BASE}/jokes/stats`);
@@ -170,9 +172,60 @@ export async function fetchStats(): Promise<{
     avg_groan_level: number;
     most_upvoted: Joke | null;
     category_counts: { category: string; count: number }[];
+    pending_count: number;
   }> = await res.json();
   // Throw an error if the stats request failed
   if (!json.success || !json.data) throw new Error(json.error || "Failed to fetch stats");
   // Return the stats object
+  return json.data;
+}
+
+// ============================================================
+// Moderation queue — admin-only endpoints (require an x-admin-token header)
+// ============================================================
+
+// The shape returned by fetchPendingJokes(): the pending jokes for the requested
+// page, plus pagination metadata, mirroring fetchJokesPage() above.
+export interface PendingJokesPage {
+  jokes: Joke[];
+  pagination: NonNullable<ApiResponse<Joke[]>["pagination"]>;
+}
+
+// Fetch a page of jokes awaiting moderation. Requires a valid admin token — the
+// server rejects this with 401 (or 503 if ADMIN_TOKEN isn't configured server-side)
+// otherwise.
+export async function fetchPendingJokes(adminToken: string, page = 1, limit = 20): Promise<PendingJokesPage> {
+  const searchParams = new URLSearchParams();
+  searchParams.set("page", page.toString());
+  searchParams.set("limit", limit.toString());
+  const res = await fetch(`${API_BASE}/jokes/pending?${searchParams.toString()}`, {
+    headers: { "x-admin-token": adminToken },
+  });
+  const json: ApiResponse<Joke[]> = await res.json();
+  if (!json.success || !json.data || !json.pagination) {
+    throw new Error(json.error || "Failed to fetch the moderation queue");
+  }
+  return { jokes: json.data, pagination: json.pagination };
+}
+
+// Approve a pending joke, making it publicly visible and eligible for voting.
+export async function approveJoke(id: number, adminToken: string): Promise<Joke> {
+  const res = await fetch(`${API_BASE}/jokes/${id}/approve`, {
+    method: "POST",
+    headers: { "x-admin-token": adminToken },
+  });
+  const json: ApiResponse<Joke> = await res.json();
+  if (!json.success || !json.data) throw new Error(json.error || "Failed to approve joke");
+  return json.data;
+}
+
+// Reject a pending joke. The row is kept (status becomes "rejected") rather than deleted.
+export async function rejectJoke(id: number, adminToken: string): Promise<Joke> {
+  const res = await fetch(`${API_BASE}/jokes/${id}/reject`, {
+    method: "POST",
+    headers: { "x-admin-token": adminToken },
+  });
+  const json: ApiResponse<Joke> = await res.json();
+  if (!json.success || !json.data) throw new Error(json.error || "Failed to reject joke");
   return json.data;
 }

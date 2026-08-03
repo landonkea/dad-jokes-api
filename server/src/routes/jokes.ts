@@ -43,7 +43,10 @@ router.get("/", async (_req: Request, res: Response): Promise<void> => {
     // These params are shared between the SELECT and the COUNT query below, since
     // both need the exact same WHERE clause to stay consistent.
     const filterParams: unknown[] = [];
-    let whereClause = "";
+    // Public listing only ever shows approved jokes — pending submissions are still
+    // awaiting moderation, and rejected ones were turned down. Both are only visible
+    // through the admin-gated moderation endpoints below.
+    let whereClause = " WHERE status = 'approved'";
 
     // Only filter by category if the user provided one.
     // "typeof category === 'string'" makes sure it's actually a string and not something weird.
@@ -53,7 +56,7 @@ router.get("/", async (_req: Request, res: Response): Promise<void> => {
       // Build a WHERE clause. "$${filterParams.length}" becomes "$1" because
       // filterParams now has 1 item. This is how we safely filter by the user's category.
       // We use $1 instead of inserting the value directly to prevent SQL injection attacks.
-      whereClause = ` WHERE category = $${filterParams.length}`;
+      whereClause += ` AND category = $${filterParams.length}`;
     }
 
     // Determine how to sort the results based on the "sort" query parameter.
@@ -129,8 +132,9 @@ router.get("/random", async (_req: Request, res: Response): Promise<void> => {
     // SQL query: "SELECT * FROM jokes" = get all columns from the jokes table.
     // "ORDER BY RANDOM()" shuffles all the rows randomly.
     // "LIMIT 1" takes only the first (randomly shuffled) row.
-    // So we get one random joke.
-    const result = await pool.query("SELECT * FROM jokes ORDER BY RANDOM() LIMIT 1");
+    // So we get one random joke. Only approved jokes are eligible — a pending
+    // submission shouldn't be able to show up before a moderator has seen it.
+    const result = await pool.query("SELECT * FROM jokes WHERE status = 'approved' ORDER BY RANDOM() LIMIT 1");
 
     // If the result has 0 rows, the database is empty — there are no jokes to return.
     if (result.rows.length === 0) {
@@ -174,7 +178,7 @@ router.get("/categories", async (_req: Request, res: Response): Promise<void> =>
     // "ORDER BY count DESC" = put the category with the most jokes at the top.
     // Example result: [{ category: "classic", count: 8 }, { category: "animals", count: 6 }, ...]
     const result = await pool.query(
-      "SELECT category, COUNT(*) as count FROM jokes GROUP BY category ORDER BY count DESC"
+      "SELECT category, COUNT(*) as count FROM jokes WHERE status = 'approved' GROUP BY category ORDER BY count DESC"
     );
 
     // Build and send a successful response with the category data.
@@ -205,32 +209,43 @@ router.get("/stats", async (_req: Request, res: Response): Promise<void> => {
     // "SUM(upvotes + downvotes)" = the total of all votes across all jokes combined.
     // "ROUND(AVG(groan_level), 1)" = the average groan level, rounded to 1 decimal place.
     // This is like asking "give me the big picture stats."
+    // Every aggregate below is scoped to status = 'approved' — pending/rejected
+    // submissions haven't cleared moderation, so they shouldn't skew public stats.
     const stats = await pool.query(`
       SELECT
         COUNT(*) as total_jokes,
         SUM(upvotes + downvotes) as total_votes,
         ROUND(AVG(groan_level), 1) as avg_groan_level
       FROM jokes
+      WHERE status = 'approved'
     `);
 
     // Find the single most upvoted joke in the entire database.
     // "ORDER BY upvotes DESC" sorts from most to fewest upvotes.
     // "LIMIT 1" grabs just the top one.
     const mostUpvoted = await pool.query(
-      "SELECT * FROM jokes ORDER BY upvotes DESC LIMIT 1"
+      "SELECT * FROM jokes WHERE status = 'approved' ORDER BY upvotes DESC LIMIT 1"
     );
 
     // Get the count of jokes per category (same query as the /categories endpoint).
     // This provides category breakdown data as part of the stats.
     const categoryCounts = await pool.query(
-      "SELECT category, COUNT(*) as count FROM jokes GROUP BY category ORDER BY count DESC"
+      "SELECT category, COUNT(*) as count FROM jokes WHERE status = 'approved' GROUP BY category ORDER BY count DESC"
+    );
+
+    // How many submissions are sitting in the moderation queue right now. Not
+    // gated behind admin auth (it's just a count, no joke content), but it's what
+    // powers the "N pending" badge an admin would want to see before opening the
+    // queue itself.
+    const pendingCount = await pool.query(
+      "SELECT COUNT(*) as count FROM jokes WHERE status = 'pending'"
     );
 
     // Build a combined stats object.
     // "...stats.rows[0]" uses the "spread operator" to take all the properties from the first row
     // of the stats query (total_jokes, total_votes, avg_groan_level) and put them into this object.
     // Then we add the most_upvoted joke and the category counts on top.
-    const response: ApiResponse<typeof stats.rows[0] & { most_upvoted: Joke | null; category_counts: { category: string; count: number }[] }> = {
+    const response: ApiResponse<typeof stats.rows[0] & { most_upvoted: Joke | null; category_counts: { category: string; count: number }[]; pending_count: number }> = {
       success: true,
       data: {
         // Spread the aggregate stats (total_jokes, total_votes, avg_groan_level).
@@ -240,9 +255,58 @@ router.get("/stats", async (_req: Request, res: Response): Promise<void> => {
         most_upvoted: mostUpvoted.rows[0] || null,
         // The full list of categories with their counts.
         category_counts: categoryCounts.rows,
+        // How many submissions are awaiting moderation right now.
+        pending_count: parseInt(pendingCount.rows[0].count, 10),
       },
     };
     // Send the stats response back to the client.
+    res.json(response);
+  } catch (err) {
+    const response: ApiResponse<null> = {
+      success: false,
+      error: (err as Error).message,
+    };
+    res.status(500).json(response);
+  }
+});
+
+// ============================================================
+// GET /pending — Get all jokes awaiting moderation (admin only)
+// ============================================================
+// This route handles GET requests to "/api/jokes/pending".
+// It's how an admin reviews the moderation queue: every joke someone has submitted
+// that hasn't been approved or rejected yet, oldest first (so the queue is worked
+// in the order jokes came in, like a support ticket queue).
+// NOTE: This MUST be declared before GET "/:id" below — Express matches routes in
+// the order they're registered, and "/:id" would otherwise swallow "/pending" by
+// treating the literal word "pending" as an :id value.
+router.get("/pending", requireAdminToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    // Reuse the same pagination helper as the public listing — the queue can grow
+    // large, so admins page through it rather than fetching everything at once.
+    const { limit, offset, page } = parsePagination(req.query);
+
+    const [result, countResult] = await Promise.all([
+      pool.query(
+        "SELECT * FROM jokes WHERE status = 'pending' ORDER BY created_at ASC LIMIT $1 OFFSET $2",
+        [limit, offset]
+      ),
+      pool.query("SELECT COUNT(*) FROM jokes WHERE status = 'pending'"),
+    ]);
+
+    const total = parseInt(countResult.rows[0].count, 10);
+
+    const response: ApiResponse<Joke[]> = {
+      success: true,
+      data: result.rows,
+      pagination: {
+        page,
+        limit,
+        offset,
+        total,
+        total_pages: Math.max(Math.ceil(total / limit), 1),
+      },
+    };
     res.json(response);
   } catch (err) {
     const response: ApiResponse<null> = {
@@ -260,11 +324,14 @@ router.get("/stats", async (_req: Request, res: Response): Promise<void> => {
 // The ":id" part is a URL parameter — it captures whatever number is in the URL
 // and makes it available as req.params.id.
 // Think of it like a form field: the URL is the form, and ":id" is the blank to fill in.
+// Only approved jokes are visible here — a pending or rejected joke isn't public yet,
+// so it 404s just like an id that doesn't exist at all (this also means the queue
+// doesn't leak which ids are "real but not approved" to an unauthenticated caller).
 router.get("/:id", async (req: Request, res: Response): Promise<void> => {
   try {
     // Query the database for a joke where the "id" column matches the number from the URL.
     // "$1" is a placeholder that gets replaced by req.params.id safely.
-    const result = await pool.query("SELECT * FROM jokes WHERE id = $1", [
+    const result = await pool.query("SELECT * FROM jokes WHERE id = $1 AND status = 'approved'", [
       // req.params.id is whatever was in the URL after "/api/jokes/".
       // For example, if the URL is "/api/jokes/42", then req.params.id is "42".
       req.params.id,
@@ -319,11 +386,14 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     // Destructure the validated data into individual variables for easy use.
     const { setup, punchline, category, groan_level, author } = parsed.data;
 
-    // Insert the new joke into the database.
+    // Insert the new joke into the database with status = 'pending' — public
+    // submissions go through moderation before they're visible to anyone else or
+    // eligible for voting. An admin approves or rejects it via the /:id/approve
+    // and /:id/reject routes below (see GET /pending for the review queue).
     // "RETURNING *" tells PostgreSQL to send back the newly created row.
     const result = await pool.query(
-      `INSERT INTO jokes (setup, punchline, category, groan_level, author)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO jokes (setup, punchline, category, groan_level, author, status)
+       VALUES ($1, $2, $3, $4, $5, 'pending')
        RETURNING *`,
       // The "||" operator provides fallback values for optional fields.
       // If category is undefined, use "classic". If groan_level is undefined, use 5. Etc.
@@ -374,6 +444,16 @@ router.post("/vote", voteLimiter, async (req: Request, res: Response): Promise<v
     // single browser mashing the vote button or refreshing to vote again.
     const voterIp = req.ip || req.socket.remoteAddress || "unknown";
 
+    // A joke has to have cleared moderation before it can be voted on — otherwise
+    // someone could vote on (or find out about the existence of) a joke that's
+    // still pending review, or one that was rejected. Treat both cases as 404,
+    // same as an id that doesn't exist at all.
+    const jokeStatus = await pool.query("SELECT status FROM jokes WHERE id = $1", [joke_id]);
+    if (jokeStatus.rows.length === 0 || jokeStatus.rows[0].status !== "approved") {
+      res.status(404).json({ success: false, error: "Joke not found." });
+      return;
+    }
+
     // Reject a second vote from the same IP on the same joke before writing anything.
     const existingVote = await pool.query(
       "SELECT 1 FROM votes WHERE joke_id = $1 AND voter_ip = $2 LIMIT 1",
@@ -421,6 +501,92 @@ router.post("/vote", voteLimiter, async (req: Request, res: Response): Promise<v
     const response: ApiResponse<Joke> = {
       success: true,
       data: jokeResult.rows[0],
+    };
+    res.json(response);
+  } catch (err) {
+    const response: ApiResponse<null> = {
+      success: false,
+      error: (err as Error).message,
+    };
+    res.status(500).json(response);
+  }
+});
+
+// ============================================================
+// POST /:id/approve — Approve a pending joke (admin only)
+// ============================================================
+// This route handles POST requests to "/api/jokes/42/approve".
+// Moves a joke from "pending" to "approved", making it visible in the public API
+// (GET /, /random, /categories, /stats, /:id) and eligible for voting.
+router.post("/:id/approve", requireAdminToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    // Only actually transitions a joke that's currently "pending" — approving an
+    // already-approved or rejected joke is a no-op at the SQL level so we can tell
+    // apart "doesn't exist" from "exists but wasn't pending" below.
+    const result = await pool.query(
+      "UPDATE jokes SET status = 'approved' WHERE id = $1 AND status = 'pending' RETURNING *",
+      [req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      // Figure out whether the id doesn't exist at all, or exists but wasn't
+      // pending (already approved/rejected), so we can give an accurate error.
+      const existing = await pool.query("SELECT status FROM jokes WHERE id = $1", [req.params.id]);
+      if (existing.rows.length === 0) {
+        res.status(404).json({ success: false, error: "Joke not found." });
+      } else {
+        res.status(409).json({
+          success: false,
+          error: `Joke is already "${existing.rows[0].status}", not pending.`,
+        });
+      }
+      return;
+    }
+
+    const response: ApiResponse<Joke> = {
+      success: true,
+      data: result.rows[0],
+    };
+    res.json(response);
+  } catch (err) {
+    const response: ApiResponse<null> = {
+      success: false,
+      error: (err as Error).message,
+    };
+    res.status(500).json(response);
+  }
+});
+
+// ============================================================
+// POST /:id/reject — Reject a pending joke (admin only)
+// ============================================================
+// This route handles POST requests to "/api/jokes/42/reject".
+// Moves a joke from "pending" to "rejected". The row is kept (not deleted) so
+// there's a record of what was submitted and turned down — an admin who wants it
+// gone entirely can still DELETE /:id afterward.
+router.post("/:id/reject", requireAdminToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await pool.query(
+      "UPDATE jokes SET status = 'rejected' WHERE id = $1 AND status = 'pending' RETURNING *",
+      [req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      const existing = await pool.query("SELECT status FROM jokes WHERE id = $1", [req.params.id]);
+      if (existing.rows.length === 0) {
+        res.status(404).json({ success: false, error: "Joke not found." });
+      } else {
+        res.status(409).json({
+          success: false,
+          error: `Joke is already "${existing.rows[0].status}", not pending.`,
+        });
+      }
+      return;
+    }
+
+    const response: ApiResponse<Joke> = {
+      success: true,
+      data: result.rows[0],
     };
     res.json(response);
   } catch (err) {

@@ -59,6 +59,7 @@ describe("Jokes API routes (integration)", () => {
     upvotes: number;
     downvotes: number;
     author: string;
+    status: string;
   }> = {}): Promise<number> {
     const j = {
       setup: "Why did the scarecrow win an award?",
@@ -68,12 +69,13 @@ describe("Jokes API routes (integration)", () => {
       upvotes: 0,
       downvotes: 0,
       author: "Test Dad",
+      status: "approved",
       ...overrides,
     };
     const result = await pool.query(
-      `INSERT INTO jokes (setup, punchline, category, groan_level, upvotes, downvotes, author)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-      [j.setup, j.punchline, j.category, j.groan_level, j.upvotes, j.downvotes, j.author]
+      `INSERT INTO jokes (setup, punchline, category, groan_level, upvotes, downvotes, author, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+      [j.setup, j.punchline, j.category, j.groan_level, j.upvotes, j.downvotes, j.author, j.status]
     );
     return result.rows[0].id;
   }
@@ -296,6 +298,33 @@ describe("Jokes API routes (integration)", () => {
       expect(res.body.data.upvotes).toBe(0);
     });
 
+    it("creates the joke with status 'pending', awaiting moderation", async () => {
+      const res = await request(app)
+        .post("/api/jokes")
+        .send({ setup: "A brand new setup", punchline: "A punchline" });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.status).toBe("pending");
+    });
+
+    it("does not make the new joke visible in the public listing, random, or by-id endpoints", async () => {
+      const created = await request(app)
+        .post("/api/jokes")
+        .send({ setup: "Invisible until approved", punchline: "A punchline" });
+      const id = created.body.data.id;
+
+      const list = await request(app).get("/api/jokes");
+      expect(list.body.data.find((j: { id: number }) => j.id === id)).toBeUndefined();
+      expect(list.body.pagination.total).toBe(0);
+
+      const byId = await request(app).get(`/api/jokes/${id}`);
+      expect(byId.status).toBe(404);
+
+      // Random draws only from approved jokes — with nothing approved yet, it 404s.
+      const random = await request(app).get("/api/jokes/random");
+      expect(random.status).toBe(404);
+    });
+
     it("accepts an explicit category from the fixed taxonomy", async () => {
       const res = await request(app)
         .post("/api/jokes")
@@ -391,6 +420,121 @@ describe("Jokes API routes (integration)", () => {
     it("rejects a non-positive joke_id with 400", async () => {
       const res = await request(app).post("/api/jokes/vote").send({ joke_id: -1, vote_type: "up" });
       expect(res.status).toBe(400);
+    });
+
+    it("rejects voting on a joke that's still pending moderation with 404", async () => {
+      const id = await insertJoke({ status: "pending" });
+      const res = await request(app).post("/api/jokes/vote").send({ joke_id: id, vote_type: "up" });
+      expect(res.status).toBe(404);
+    });
+
+    it("rejects voting on a joke that was rejected with 404", async () => {
+      const id = await insertJoke({ status: "rejected" });
+      const res = await request(app).post("/api/jokes/vote").send({ joke_id: id, vote_type: "up" });
+      expect(res.status).toBe(404);
+    });
+  });
+
+  // ==========================================================
+  // Moderation queue: GET /pending, POST /:id/approve, POST /:id/reject
+  // ==========================================================
+  describe("Moderation queue (admin-gated)", () => {
+    describe("GET /api/jokes/pending", () => {
+      it("rejects with 401 when no x-admin-token header is provided", async () => {
+        await insertJoke({ status: "pending" });
+        const res = await request(app).get("/api/jokes/pending");
+        expect(res.status).toBe(401);
+      });
+
+      it("lists only pending jokes, oldest first, and never approved/rejected ones", async () => {
+        const approved = await insertJoke({ setup: "Already live", status: "approved" });
+        const rejected = await insertJoke({ setup: "Already turned down", status: "rejected" });
+        const firstPending = await insertJoke({ setup: "First submitted", status: "pending" });
+        const secondPending = await insertJoke({ setup: "Second submitted", status: "pending" });
+
+        const res = await request(app).get("/api/jokes/pending").set("x-admin-token", ADMIN_TOKEN!);
+        expect(res.status).toBe(200);
+        const ids = res.body.data.map((j: { id: number }) => j.id);
+        expect(ids).toEqual([firstPending, secondPending]);
+        expect(ids).not.toContain(approved);
+        expect(ids).not.toContain(rejected);
+        expect(res.body.pagination.total).toBe(2);
+      });
+    });
+
+    describe("POST /api/jokes/:id/approve", () => {
+      it("rejects with 401 when no x-admin-token header is provided", async () => {
+        const id = await insertJoke({ status: "pending" });
+        const res = await request(app).post(`/api/jokes/${id}/approve`);
+        expect(res.status).toBe(401);
+      });
+
+      it("approves a pending joke, making it visible in the public listing", async () => {
+        const id = await insertJoke({ setup: "Awaiting approval", status: "pending" });
+
+        const approve = await request(app).post(`/api/jokes/${id}/approve`).set("x-admin-token", ADMIN_TOKEN!);
+        expect(approve.status).toBe(200);
+        expect(approve.body.data.status).toBe("approved");
+
+        const list = await request(app).get("/api/jokes");
+        expect(list.body.data.map((j: { id: number }) => j.id)).toContain(id);
+      });
+
+      it("returns 409 when the joke is already approved", async () => {
+        const id = await insertJoke({ status: "approved" });
+        const res = await request(app).post(`/api/jokes/${id}/approve`).set("x-admin-token", ADMIN_TOKEN!);
+        expect(res.status).toBe(409);
+      });
+
+      it("returns 404 for an id that doesn't exist", async () => {
+        const res = await request(app).post("/api/jokes/999999/approve").set("x-admin-token", ADMIN_TOKEN!);
+        expect(res.status).toBe(404);
+      });
+    });
+
+    describe("POST /api/jokes/:id/reject", () => {
+      it("rejects with 401 when no x-admin-token header is provided", async () => {
+        const id = await insertJoke({ status: "pending" });
+        const res = await request(app).post(`/api/jokes/${id}/reject`);
+        expect(res.status).toBe(401);
+      });
+
+      it("rejects a pending joke, keeping it out of the public listing", async () => {
+        const id = await insertJoke({ setup: "Not making the cut", status: "pending" });
+
+        const reject = await request(app).post(`/api/jokes/${id}/reject`).set("x-admin-token", ADMIN_TOKEN!);
+        expect(reject.status).toBe(200);
+        expect(reject.body.data.status).toBe("rejected");
+
+        const list = await request(app).get("/api/jokes");
+        expect(list.body.data.map((j: { id: number }) => j.id)).not.toContain(id);
+
+        // The row is kept (not deleted) — it just no longer shows up as pending either.
+        const pending = await request(app).get("/api/jokes/pending").set("x-admin-token", ADMIN_TOKEN!);
+        expect(pending.body.data.map((j: { id: number }) => j.id)).not.toContain(id);
+      });
+
+      it("returns 409 when the joke is already rejected", async () => {
+        const id = await insertJoke({ status: "rejected" });
+        const res = await request(app).post(`/api/jokes/${id}/reject`).set("x-admin-token", ADMIN_TOKEN!);
+        expect(res.status).toBe(409);
+      });
+
+      it("returns 404 for an id that doesn't exist", async () => {
+        const res = await request(app).post("/api/jokes/999999/reject").set("x-admin-token", ADMIN_TOKEN!);
+        expect(res.status).toBe(404);
+      });
+    });
+
+    describe("GET /api/jokes/stats pending_count", () => {
+      it("reports how many jokes are awaiting moderation", async () => {
+        await insertJoke({ status: "approved" });
+        await insertJoke({ status: "pending" });
+        await insertJoke({ status: "pending" });
+
+        const res = await request(app).get("/api/jokes/stats");
+        expect(res.body.data.pending_count).toBe(2);
+      });
     });
   });
 

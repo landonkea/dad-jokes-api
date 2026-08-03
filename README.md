@@ -270,14 +270,24 @@ Defines all the URLs the server responds to:
 
 | URL | What It Does |
 |-----|-------------|
-| `GET /api/jokes` | List all jokes |
-| `GET /api/jokes/random` | Get one random joke |
-| `GET /api/jokes/categories` | List all categories |
-| `GET /api/jokes/stats` | Get statistics |
-| `GET /api/jokes/:id` | Get one specific joke |
-| `POST /api/jokes` | Submit a new joke |
-| `POST /api/jokes/vote` | Upvote or downvote |
-| `DELETE /api/jokes/:id` | Delete a joke |
+| `GET /api/jokes` | List all **approved** jokes |
+| `GET /api/jokes/random` | Get one random **approved** joke |
+| `GET /api/jokes/categories` | List all categories (approved jokes only) |
+| `GET /api/jokes/stats` | Get statistics (approved jokes only, plus `pending_count`) |
+| `GET /api/jokes/pending` 🔒 | List jokes awaiting moderation (admin only) |
+| `GET /api/jokes/:id` | Get one specific **approved** joke |
+| `POST /api/jokes` | Submit a new joke — lands as `status: "pending"`, not yet public |
+| `POST /api/jokes/vote` | Upvote or downvote (approved jokes only) |
+| `POST /api/jokes/:id/approve` 🔒 | Approve a pending joke, making it public (admin only) |
+| `POST /api/jokes/:id/reject` 🔒 | Reject a pending joke — kept in the DB, stays non-public (admin only) |
+| `DELETE /api/jokes/:id` 🔒 | Delete a joke (admin only) |
+
+🔒 = requires the `x-admin-token` header to match the server's `ADMIN_TOKEN` env var.
+
+**Moderation queue:** every joke submitted via `POST /api/jokes` starts as `status: "pending"`
+and is invisible to the public API until an admin approves it. This closes the old gap where
+any submission (including spam) went straight to the live, votable joke list. See
+`client/src/components/ModerationQueue.tsx` for the admin review UI (the "Moderate" tab).
 
 #### `server/src/middleware/errorHandler.ts` — The Safety Net
 Catches any errors that crash the server and returns a friendly message instead of a blank screen.
@@ -295,6 +305,7 @@ Decides which tab is active and renders the right component:
 - "Browse" tab → `CategoryPicker` + `JokeList`
 - "Submit" tab → `JokeSubmitter`
 - "Stats" tab → `StatsPanel`
+- "Moderate" tab → `ModerationQueue` (admin-token-gated review of pending submissions)
 
 Also renders `Particles` (floating emojis) and `Marquee` (scrolling ticker) in the background.
 
@@ -305,6 +316,8 @@ Contains functions that talk to the server. When the UI says "get me a random jo
 - `voteJoke()` → POST `/api/jokes/vote`
 - `submitJoke()` → POST `/api/jokes`
 - `fetchStats()` → GET `/api/jokes/stats`
+- `fetchPendingJokes()` → GET `/api/jokes/pending` (admin)
+- `approveJoke()` / `rejectJoke()` → POST `/api/jokes/:id/approve` / `/api/jokes/:id/reject` (admin)
 
 #### `client/src/hooks/useRandomJoke.ts` — The Random Joke Hook
 A custom React hook that:

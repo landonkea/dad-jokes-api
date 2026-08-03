@@ -25,9 +25,19 @@ export const SCHEMA_SQL = `
 
   ALTER TABLE votes ADD COLUMN IF NOT EXISTS voter_ip VARCHAR(45);
 
+  -- Moderation status for the joke submission queue. New submissions come in as
+  -- 'pending' (see routes/jokes.ts POST /) and only become publicly visible once
+  -- an admin approves them. Defaulting the COLUMN itself to 'approved' (rather than
+  -- 'pending') means this ALTER is safe to run against a database that already has
+  -- jokes in it — every pre-existing row (including seed data) is grandfathered in
+  -- as already-approved instead of silently disappearing from the public API.
+  ALTER TABLE jokes ADD COLUMN IF NOT EXISTS status VARCHAR(10) NOT NULL DEFAULT 'approved'
+    CHECK (status IN ('pending', 'approved', 'rejected'));
+
   CREATE INDEX IF NOT EXISTS idx_jokes_category ON jokes(category);
   CREATE INDEX IF NOT EXISTS idx_jokes_groan_level ON jokes(groan_level);
   CREATE INDEX IF NOT EXISTS idx_votes_joke_id ON votes(joke_id);
   CREATE INDEX IF NOT EXISTS idx_votes_joke_ip ON votes(joke_id, voter_ip);
   CREATE INDEX IF NOT EXISTS idx_jokes_score ON jokes ((upvotes - downvotes));
+  CREATE INDEX IF NOT EXISTS idx_jokes_status ON jokes(status);
 `;
