@@ -6,6 +6,8 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import compression from "compression";
+import path from "path";
+import fs from "fs";
 import jokesRouter from "./routes/jokes";
 import { errorHandler } from "./middleware/errorHandler";
 import { apiLimiter } from "./middleware/rateLimiter";
@@ -33,6 +35,28 @@ app.get("/api/health", (_req, res) => {
     uptime: process.uptime(),
   });
 });
+
+// Serve the built React client (client/dist), if present. In the production Docker image
+// this directory is copied in alongside the compiled server (see Dockerfile) so one process
+// serves both the API and the static frontend. In local dev the client normally runs via
+// its own Vite dev server instead, so client/dist may not exist — in that case we simply
+// skip static serving rather than crashing.
+const clientDistPath = path.join(__dirname, "../../client/dist");
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
+
+  // SPA fallback: any GET request that isn't for a static asset or an /api/* route should
+  // still return index.html so client-side routing works on a hard refresh / deep link.
+  // Implemented as plain middleware (not an app.get("*") route) to sidestep Express 5's
+  // path-to-regexp v8 requiring named wildcards for "*" route patterns.
+  app.use((req, res, next) => {
+    if (req.method !== "GET" || req.path.startsWith("/api")) {
+      next();
+      return;
+    }
+    res.sendFile(path.join(clientDistPath, "index.html"));
+  });
+}
 
 // Catch-all error handler — must be registered last.
 app.use(errorHandler);

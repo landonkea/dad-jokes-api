@@ -140,3 +140,125 @@ jobs:
       - name: Run client tests
         run: npm run test:run
         working-directory: client
+
+      # Step 8: Generate a persisted test-results summary (pass/fail counts + timestamp).
+      # This re-runs both suites (via scripts/generate-test-summary.js, using vitest's JSON
+      # reporter) and writes test-results/latest.json + latest.md. It's additive to steps 6/7
+      # above — those remain the actual pass/fail gate for this job — this step exists purely
+      # to leave behind a persisted artifact (see the upload step below) instead of requiring
+      # anyone to dig through raw CI logs to answer "did the tests pass, and when."
+      # "if: always()" runs this even if an earlier step failed, so a failing build still
+      # gets a summary showing the failure instead of no artifact at all.
+      - name: Generate test-results summary
+        if: always()
+        run: npm run test:summary
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: dad_jokes_test
+          ADMIN_TOKEN: test-admin-token
+
+      # Step 9: Upload test-results/ as a downloadable build artifact.
+      # "if: always()" ensures this runs (and the summary is available) even when the
+      # summary step above reports failures, so a red build still leaves a diagnosable
+      # artifact instead of nothing.
+      - name: Upload test-results artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results/
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------------------
+  # JOB 2: "docker" — Builds the production Docker image and smoke-tests it
+  # ---------------------------------------------------------------------------
+  # WHAT: Builds the image defined by the root Dockerfile, runs it against a real
+  #       Postgres service container, and hits a couple of real endpoints to
+  #       confirm the container actually boots and serves traffic.
+  # WHY:  "npm test" passing doesn't guarantee the Docker image itself is
+  #       buildable or bootable (e.g. missing build steps, wrong paths, a
+  #       startup script that silently fails). This catches that class of bug
+  #       in CI instead of someone discovering it the next time they run
+  #       "docker compose up". Additive — runs alongside "test" (independent
+  #       job) rather than replacing anything in it.
+  docker:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: dad_jokes_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Build the production image from the root Dockerfile. This exercises the exact
+      # same multi-stage build (server compile, client build, slim runtime image) that
+      # "docker compose up --build" runs locally.
+      - name: Build Docker image
+        run: docker build -t dad-jokes-api:ci .
+
+      # Run the built image against the Postgres service container started above.
+      # "--network host" lets the container reach the service on "localhost:5432"
+      # (GitHub Actions maps service container ports onto the runner's own localhost),
+      # matching how a developer's local Postgres is typically reached without Docker's
+      # internal DNS getting involved.
+      - name: Start container
+        run: |
+          docker run -d --name dad-jokes-smoke --network host \
+            -e DB_HOST=localhost \
+            -e DB_PORT=5432 \
+            -e DB_USER=postgres \
+            -e DB_PASSWORD=postgres \
+            -e DB_NAME=dad_jokes_test \
+            -e PORT=3001 \
+            dad-jokes-api:ci
+
+      # Poll /api/health until the container is up (docker-entrypoint.sh needs a moment
+      # to run db/init.js + db/seedIfEmpty.js before the server starts listening), then
+      # hit a real data endpoint to confirm the whole stack — container, DB init, schema,
+      # seeding, and the Express server — actually works end-to-end.
+      - name: Smoke test container
+        run: |
+          echo "Waiting for the container to become healthy..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3001/api/health > /dev/null; then
+              echo "Container is up after ${i} attempt(s)."
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "Container never became healthy."
+              docker logs dad-jokes-smoke
+              exit 1
+            fi
+            sleep 2
+          done
+
+          echo "GET /api/health:"
+          curl -sf http://localhost:3001/api/health | tee /dev/stderr | grep -q '"status":"alive"'
+
+          echo "GET /api/jokes:"
+          curl -sf http://localhost:3001/api/jokes | tee /dev/stderr | grep -q '"success":true'
+
+      # Always show container logs and tear it down, whether the smoke test passed or
+      # failed, so a failure is debuggable from the Actions log without needing SSH access.
+      - name: Container logs
+        if: always()
+        run: docker logs dad-jokes-smoke || true
+
+      - name: Stop container
+        if: always()
+        run: docker rm -f dad-jokes-smoke || true

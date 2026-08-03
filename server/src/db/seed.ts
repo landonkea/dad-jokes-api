@@ -228,13 +228,22 @@ const seedJokes = [
 // This function connects to the database and inserts all the seed jokes.
 // "async" lets us use "await" inside to wait for database operations to finish.
 // "Promise<void>" means it doesn't return a value — it just performs the seeding work.
-async function seedDB(): Promise<void> {
+export async function seedDB(): Promise<void> {
   // Create a new connection pool connected to our application database.
   const pool = new Pool({
     // The PostgreSQL username from our config.
     user: config.dbUser,
     // The database name from our config.
     database: config.dbName,
+    // The database host — without this, "pg" defaults to "localhost", which inside a
+    // container (e.g. docker-compose) refers to the container itself, not the separate
+    // "db" service, so the connection silently fails. Same class of bug already fixed
+    // in db/init.ts and db/pool.ts.
+    host: config.dbHost,
+    // The port PostgreSQL is listening on.
+    port: config.dbPort,
+    // The password to authenticate with.
+    password: config.dbPassword,
   });
 
   try {
@@ -300,19 +309,22 @@ async function seedDB(): Promise<void> {
   }
 }
 
-// Run the seedDB() function.
-// ".then()" runs when seeding finishes successfully.
-seedDB()
-  .then(() => {
-    // Print a success message.
-    console.log("Seeding complete.");
-    // Exit with code 0 (success).
-    process.exit(0);
-  })
-  // ".catch()" runs if something goes wrong during seeding.
-  .catch((err) => {
-    // Print the error so the developer can debug it.
-    console.error("Seeding failed:", err);
-    // Exit with code 1 (failure).
-    process.exit(1);
-  });
+// Only auto-run seedDB() when this file is executed directly (e.g. "node dist/db/seed.js"
+// or "npm run db:seed") — NOT when it's imported as a module (see db/seedIfEmpty.ts, which
+// imports seedDB() to conditionally seed on container startup without double-running this).
+if (require.main === module) {
+  seedDB()
+    .then(() => {
+      // Print a success message.
+      console.log("Seeding complete.");
+      // Exit with code 0 (success).
+      process.exit(0);
+    })
+    // ".catch()" runs if something goes wrong during seeding.
+    .catch((err) => {
+      // Print the error so the developer can debug it.
+      console.error("Seeding failed:", err);
+      // Exit with code 1 (failure).
+      process.exit(1);
+    });
+}

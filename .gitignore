@@ -37,3 +37,9 @@ dist/
 # It stores your Finder preferences (icon positions, view settings).
 # It's Mac-specific junk that doesn't belong in the project repo.
 .DS_Store
+
+# test-results/ = Generated test-run summaries (pass/fail counts, timestamp) written by
+# scripts/generate-test-summary.js. Regenerated on every run — CI uploads it as a build
+# artifact (see .github/workflows/ci.yml) rather than committing it, since it's a
+# snapshot of "last CI run," not source code.
+test-results/

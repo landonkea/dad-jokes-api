@@ -10,7 +10,8 @@
     "server": "cd server && npm run dev",
     "client": "cd client && npm run dev",
     "start": "concurrently \"npm run server\" \"npm run client\"",
-    "dev": "npm run start"
+    "dev": "npm run start",
+    "test:summary": "node scripts/generate-test-summary.js"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

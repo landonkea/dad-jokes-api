@@ -101,6 +101,11 @@ COPY --from=server-build /app/server/dist ./server/dist
 # they ship in the final image alongside the compiled server.
 COPY --from=client-build /app/client/dist ./client/dist
 
+# Copy the startup script that initializes the database schema (and seeds sample
+# data on a first run against an empty database) before starting the server.
+COPY docker-entrypoint.sh ./docker-entrypoint.sh
+RUN chmod +x ./docker-entrypoint.sh
+
 # ---------------------------------------------------------------------------
 # Expose the port and define the startup command
 # ---------------------------------------------------------------------------
@@ -109,7 +114,9 @@ COPY --from=client-build /app/client/dist ./client/dist
 # We still need to map it with -p in docker run or docker-compose.
 EXPOSE 3001
 
-# "CMD" is the command Docker runs when the container starts.
-# We use the exec form (JSON array) for better signal handling.
-# This starts our Express server by running the compiled JavaScript.
-CMD ["node", "server/dist/index.js"]
+# "CMD" is the command Docker runs when the container starts. We use the shell form
+# via docker-entrypoint.sh (see that file) so the database schema exists — and, on a
+# fresh/empty database, gets sample data — before the Express server starts accepting
+# requests. Without this, every route that touches Postgres 500s on a brand-new
+# database (the "jokes"/"votes" tables never get created).
+CMD ["./docker-entrypoint.sh"]
