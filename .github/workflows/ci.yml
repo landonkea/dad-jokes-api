@@ -129,6 +129,10 @@ jobs:
           DB_USER: postgres
           DB_PASSWORD: postgres
           DB_NAME: dad_jokes_test  # Uses the test database, not production!
+          # Needed by the DELETE /api/jokes/:id integration tests — without this,
+          # requireAdminToken fails closed (503) for every request, before the
+          # 401/200/404 cases under test ever get exercised.
+          ADMIN_TOKEN: test-admin-token
 
       # Step 7: Run the client's test suite.
       # Client tests don't need a database — they test React components

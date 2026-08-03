@@ -16,7 +16,7 @@ npm run test:run
 ## Test Types
 
 - **Unit Tests**: Test individual functions/components in isolation
-- **Integration Tests** (coming soon): Test API endpoints + database together
+- **Integration Tests**: Test API endpoints + database together (`server/src/__tests__/jokesRoutes.integration.test.ts`) — exercises every route in `routes/jokes.ts` (filtering, sorting, pagination, validation, vote dedup, admin-gated delete) against a real PostgreSQL database via supertest. Requires a reachable Postgres instance (see `DB_*` env vars); locally this targets a separate `dad_jokes_test` database so it's safe to `TRUNCATE` between tests.
 - **TDD**: Write tests first, then code to pass them
 - **BDD**: Tests in plain English Given/When/Then format
 

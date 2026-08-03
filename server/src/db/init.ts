@@ -2,6 +2,9 @@
 import { Pool } from "pg";
 // Import our validated config object to get database credentials.
 import { config } from "../config/env";
+// Import the shared CREATE TABLE / CREATE INDEX SQL — also used by integration tests
+// so the test schema can never silently drift from the real one.
+import { SCHEMA_SQL } from "./schema";
 
 // Define an async function that initializes the database.
 // "async" lets us use "await" inside to wait for database operations to finish.
@@ -81,79 +84,10 @@ async function initDB(): Promise<void> {
   });
 
   try {
-    // This big SQL string creates our tables and indexes.
-    // "CREATE TABLE IF NOT EXISTS" means "make this table, but don't error if it already exists."
-    // Think of a table like a spreadsheet — it has columns (like headers) and rows (like data entries).
-    //
-    // NOTE: Comments inside SQL use "--" (double dash), NOT "//" (which PostgreSQL doesn't support).
-    await appPool.query(`
-      -- This creates the "jokes" table where all our dad jokes will be stored.
-      CREATE TABLE IF NOT EXISTS jokes (
-        -- id SERIAL PRIMARY KEY means:
-        -- - id: the column name
-        -- - SERIAL: automatically generates a unique number for each new row (1, 2, 3, 4...)
-        -- - PRIMARY KEY: this is the unique identifier — no two rows can have the same id.
-        id SERIAL PRIMARY KEY,
-        -- "setup TEXT NOT NULL" means:
-        -- - The setup can be any length of text (short or long).
-        -- - NOT NULL means this field CANNOT be empty — every joke MUST have a setup.
-        setup TEXT NOT NULL,
-        -- Same for punchline — every joke must have a punchline, and it can be any length.
-        punchline TEXT NOT NULL,
-        -- "VARCHAR(50)" means the category can be up to 50 characters long.
-        -- "DEFAULT 'classic'" means if no category is provided, use "classic" automatically.
-        category VARCHAR(50) DEFAULT 'classic',
-        -- "INTEGER DEFAULT 5" means a whole number that defaults to 5.
-        -- "CHECK (groan_level >= 1 AND groan_level <= 10)" enforces the range in the database.
-        groan_level INTEGER DEFAULT 5 CHECK (groan_level >= 1 AND groan_level <= 10),
-        -- Upvotes start at 0. They go up by 1 each time someone likes the joke.
-        upvotes INTEGER DEFAULT 0,
-        -- Downvotes also start at 0. They go up by 1 each time someone dislikes the joke.
-        downvotes INTEGER DEFAULT 0,
-        -- The author's name can be up to 100 characters. If no name, defaults to "Anonymous Dad".
-        author VARCHAR(100) DEFAULT 'Anonymous Dad',
-        -- "TIMESTAMP DEFAULT CURRENT_TIMESTAMP" automatically records the date/time on insert.
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      -- This creates the "votes" table to track individual upvotes and downvotes.
-      -- Separating votes from jokes lets us record every vote while keeping jokes table clean.
-      CREATE TABLE IF NOT EXISTS votes (
-        -- Auto-incrementing unique ID for each vote, just like the jokes table.
-        id SERIAL PRIMARY KEY,
-        -- "REFERENCES jokes(id) ON DELETE CASCADE" means:
-        -- - Links to the "id" column in the "jokes" table.
-        -- - If the joke is deleted, all its votes are deleted too (no orphaned votes).
-        joke_id INTEGER REFERENCES jokes(id) ON DELETE CASCADE,
-        -- The vote type can only be 'up' or 'down' — CHECK enforces this in the DB.
-        vote_type VARCHAR(4) NOT NULL CHECK (vote_type IN ('up', 'down')),
-        -- When was this vote cast? Automatically recorded.
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      -- "voter_ip" identifies (imperfectly — see routes/jokes.ts) who cast each vote, so we
-      -- can block a second vote from the same IP on the same joke. Added via ALTER TABLE
-      -- (not just in the CREATE TABLE above) so this also runs against databases that already
-      -- had a "votes" table before this column existed — CREATE TABLE IF NOT EXISTS is a no-op
-      -- on a table that's already there, so the column would otherwise never get added.
-      ALTER TABLE votes ADD COLUMN IF NOT EXISTS voter_ip VARCHAR(45);
-
-      -- INDEXES are like a table of contents — they help the database find data faster.
-      -- "CREATE INDEX IF NOT EXISTS" makes the index but doesn't error if it already exists.
-      -- This index speeds up searches by "category".
-      CREATE INDEX IF NOT EXISTS idx_jokes_category ON jokes(category);
-      -- This index speeds up sorting/filtering by "groan_level".
-      CREATE INDEX IF NOT EXISTS idx_jokes_groan_level ON jokes(groan_level);
-      -- This index speeds up looking up all votes for a specific joke.
-      CREATE INDEX IF NOT EXISTS idx_votes_joke_id ON votes(joke_id);
-      -- This index backs the vote-dedup check in POST /vote (WHERE joke_id = $1 AND voter_ip = $2).
-      CREATE INDEX IF NOT EXISTS idx_votes_joke_ip ON votes(joke_id, voter_ip);
-      -- This is an EXPRESSION index on "upvotes - downvotes" — the exact expression the default
-      -- sort ("ORDER BY upvotes - downvotes DESC", see utils/sortOptions.ts) uses. Without it,
-      -- Postgres can't use a plain index on either column alone to satisfy that ORDER BY and has
-      -- to sort every matching row from scratch on every request.
-      CREATE INDEX IF NOT EXISTS idx_jokes_score ON jokes ((upvotes - downvotes));
-    `);
+    // Run the shared CREATE TABLE / CREATE INDEX SQL (see db/schema.ts). Pulling it out into
+    // its own module means integration tests can stand up the identical schema against a test
+    // database instead of maintaining a second, easily-drifting copy of this SQL.
+    await appPool.query(SCHEMA_SQL);
 
     // Let the developer know everything was set up successfully.
     console.log("Tables and indexes created successfully.");

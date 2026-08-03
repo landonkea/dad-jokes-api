@@ -3,6 +3,26 @@
 // and then check if incoming data follows those rules. Think of it as a bouncer for your data.
 import { z } from "zod";
 
+// The fixed set of joke categories. This MUST stay in sync with the hardcoded
+// <select> options in client/src/components/JokeSubmitter.tsx — previously the
+// server accepted ANY string here, so a typo'd or client-drifted category (e.g.
+// "Puns" vs "puns", or a category the dropdown never offered) would silently
+// fragment /api/jokes/categories counts and category filters. Enforcing the
+// same enum server-side keeps the two in lockstep.
+export const JOKE_CATEGORIES = [
+  "classic",
+  "puns",
+  "animals",
+  "food",
+  "science",
+  "math",
+  "smart",
+  "work",
+  "geography",
+] as const;
+
+export type JokeCategory = (typeof JOKE_CATEGORIES)[number];
+
 // Defines the validation rules for joke submission data.
 // When someone POSTs a new joke, this schema checks that the data is valid
 // before it ever touches the database. Bad data gets rejected immediately.
@@ -22,11 +42,13 @@ export const jokeInputSchema = z.object({
     .min(2, "Punchline must be at least 2 characters")
     .max(500, "Punchline must be under 500 characters"),
   // "category" is optional (you don't have to provide it).
-  // If provided, it must be a string with at most 50 characters.
+  // If provided, it must be one of the fixed JOKE_CATEGORIES values — the same
+  // list the client's dropdown offers — so category counts/filters can't drift.
   // If omitted, it defaults to "classic" — so every joke always has a category.
   category: z
-    .string()
-    .max(50)
+    .enum(JOKE_CATEGORIES, {
+      error: `Category must be one of: ${JOKE_CATEGORIES.join(", ")}`,
+    })
     .default("classic")
     .optional(),
   // "groan_level" is optional. If provided, it must be a whole number (int) between 1 and 10.
