@@ -22,6 +22,22 @@ export interface ApiResponse<T> {
   success: boolean;  // Whether the request succeeded (true) or failed (false)
   data?: T;          // The actual response data (only present if success is true). The "?" means it's optional.
   error?: string;    // An error message (only present if success is false). The "?" means it's optional.
+  // Pagination metadata — only present on list endpoints (like GET /api/jokes) that
+  // support page/limit/offset query params.
+  pagination?: {
+    page: number;
+    limit: number;
+    offset: number;
+    total: number;
+    total_pages: number;
+  };
+}
+
+// The shape returned by fetchJokesPage(): the jokes for the requested page, plus the
+// pagination metadata needed to render "page X of Y" / Prev / Next controls.
+export interface JokesPage {
+  jokes: Joke[];
+  pagination: NonNullable<ApiResponse<Joke[]>["pagination"]>;
 }
 
 // Fetch a single random joke from the server.
@@ -60,6 +76,28 @@ export async function fetchJokes(params?: {
   if (!json.success || !json.data) throw new Error(json.error || "Failed to fetch jokes");
   // Return the array of jokes
   return json.data;
+}
+
+// Fetch a single PAGE of jokes, along with pagination metadata (total count, total pages).
+// Use this instead of fetchJokes() when you need to render pager controls (Prev/Next, "page
+// X of Y") — the plain fetchJokes() above discards the pagination info the server sends back.
+export async function fetchJokesPage(params?: {
+  category?: string;  // Optional: only return jokes in this category
+  sort?: string;      // Optional: how to order the results (e.g., "groan", "oldest")
+  page?: number;       // Optional: 1-indexed page number
+  limit?: number;      // Optional: how many jokes per page (server caps this at 100)
+}): Promise<JokesPage> {
+  const searchParams = new URLSearchParams();
+  if (params?.category) searchParams.set("category", params.category);
+  if (params?.sort) searchParams.set("sort", params.sort);
+  if (params?.page) searchParams.set("page", params.page.toString());
+  if (params?.limit) searchParams.set("limit", params.limit.toString());
+  const res = await fetch(`${API_BASE}/jokes?${searchParams.toString()}`);
+  const json: ApiResponse<Joke[]> = await res.json();
+  if (!json.success || !json.data || !json.pagination) {
+    throw new Error(json.error || "Failed to fetch jokes");
+  }
+  return { jokes: json.data, pagination: json.pagination };
 }
 
 // Fetch the list of all joke categories and how many jokes are in each one.

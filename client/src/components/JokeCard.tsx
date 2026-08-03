@@ -1,9 +1,14 @@
-// Import React and useState for managing component state (voted, punchline visibility, toast, etc.)
-import React, { useState } from "react";
+// Import React, useState for managing component state (voted, punchline visibility, toast, etc.),
+// and useEffect to re-sync the "voted" state whenever a new random joke loads.
+import React, { useEffect, useState } from "react";
 // Import our custom hook that handles fetching and refreshing a random joke
 import { useRandomJoke } from "../hooks/useRandomJoke";
 // Import the API function that sends vote data to the server
 import { voteJoke } from "../hooks/useJokes";
+// Import the localStorage-backed "already voted" tracker, so a joke you've voted on
+// before (it can come up again since /random picks randomly) stays disabled even
+// after a page reload, and so the vote gets recorded for JokeList to see too.
+import { getVoteFor, markVoted } from "../utils/votedJokes";
 // Import the Confetti component for the celebratory particle effect when upvoting
 import { Confetti } from "./Confetti";
 // Import the Toast component for showing brief popup notifications
@@ -54,6 +59,16 @@ export const JokeCard: React.FC = () => {
   // The color/style type of the toast: "success" (green), "error" (red), or "info" (blue)
   const [toastType, setToastType] = useState<"success" | "error" | "info">("info");
 
+  // Whenever a (possibly new) random joke loads, check whether this browser already
+  // voted on it before (it's a small joke pool — /random can easily repeat one you've
+  // seen). If so, restore the disabled/voted button state instead of letting the user
+  // vote again.
+  useEffect(() => {
+    if (joke) {
+      setVoted(getVoteFor(joke.id));
+    }
+  }, [joke]);
+
   // Helper function to show a toast notification with a message and type.
   // It sets the message, makes the toast visible, then hides it after 2.5 seconds.
   const showToast = (msg: string, type: "success" | "error" | "info" = "info") => {
@@ -74,7 +89,9 @@ export const JokeCard: React.FC = () => {
     try {
       // Send the vote to the server and get back the updated joke with new vote counts
       await voteJoke(joke.id, voteType);
-      // Record that the user has voted so we can disable the vote buttons
+      // Persist the vote in localStorage (survives reloads, shared with JokeList) and
+      // record it locally so we can disable the vote buttons.
+      markVoted(joke.id, voteType);
       setVoted(voteType);
       if (voteType === "up") {
         // If they upvoted, trigger the confetti celebration animation

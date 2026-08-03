@@ -11,6 +11,12 @@ import { JokeInput, ApiResponse, Joke } from "../types";
 import { voteLimiter } from "../middleware/rateLimiter";
 // Import our Zod validation schemas — these check that incoming data is valid before we use it.
 import { jokeInputSchema, voteInputSchema } from "../validation/jokeSchema";
+// Import the pure "sort" query param -> SQL ORDER BY clause helper (unit-tested separately).
+import { getSortClause } from "../utils/sortOptions";
+// Import the pure pagination helper that turns page/limit/offset params into a safe, bounded triple.
+import { parsePagination } from "../utils/pagination";
+// Import the admin-token middleware that guards the DELETE route.
+import { requireAdminToken } from "../middleware/adminAuth";
 
 // Create a new Router instance.
 // This router will handle all routes relative to "/api/jokes" (as mounted in index.ts).
@@ -27,61 +33,56 @@ router.get("/", async (_req: Request, res: Response): Promise<void> => {
   // "try" wraps code that might fail. If the database query fails, the "catch" block handles it.
   try {
     // Extract query parameters from the URL. For example, if someone visits
-    // "/api/jokes?category=puns&sort=groan&limit=5", then:
-    //   category = "puns", sort = "groan", limit = "5"
+    // "/api/jokes?category=puns&sort=groan&page=2&limit=5", then:
+    //   category = "puns", sort = "groan", page = "2", limit = "5"
     // Query parameters come after the "?" in a URL and are key=value pairs.
-    const { category, sort, limit } = _req.query;
+    const { category, sort } = _req.query;
 
-    // Start building a SQL query string. We begin with the simplest possible query:
-    // "give me everything from the jokes table."
-    let query = "SELECT * FROM jokes";
     // "params" is an array of values that will replace $1, $2, etc. in the query.
     // We start with an empty array because we haven't added any filters yet.
-    const params: unknown[] = [];
+    // These params are shared between the SELECT and the COUNT query below, since
+    // both need the exact same WHERE clause to stay consistent.
+    const filterParams: unknown[] = [];
+    let whereClause = "";
 
     // Only filter by category if the user provided one.
     // "typeof category === 'string'" makes sure it's actually a string and not something weird.
     if (category && typeof category === "string") {
       // Add the category value to the params array. It will replace $1 in the query.
-      params.push(category);
-      // Append a WHERE clause to the query. "$${params.length}" becomes "$1" because
-      // params now has 1 item. This is how we safely filter by the user's category.
+      filterParams.push(category);
+      // Build a WHERE clause. "$${filterParams.length}" becomes "$1" because
+      // filterParams now has 1 item. This is how we safely filter by the user's category.
       // We use $1 instead of inserting the value directly to prevent SQL injection attacks.
-      query += ` WHERE category = $${params.length}`;
+      whereClause = ` WHERE category = $${filterParams.length}`;
     }
 
     // Determine how to sort the results based on the "sort" query parameter.
-    // This is a ternary expression — it's a compact if/else written on one line.
-    // If sort is "groan", sort by groan level (highest first, "DESC" = descending).
-    // If sort is "oldest", sort by creation date (oldest first, "ASC" = ascending).
-    // If sort is "controversial", sort by how close upvotes and downvotes are (closest first).
-    // If sort is anything else or not provided, default to sorting by most popular (upvotes minus downvotes).
-    const sortOption =
-      sort === "groan"
-        ? "groan_level DESC"
-        : sort === "oldest"
-        ? "created_at ASC"
-        : sort === "controversial"
-        ? "ABS(upvotes - downvotes) ASC"
-        : "upvotes - downvotes DESC";
+    // Delegated to a pure helper (utils/sortOptions.ts) so the ordering logic — including
+    // the "controversial" scoring math — can be unit-tested without a database.
+    const sortOption = getSortClause(typeof sort === "string" ? sort : undefined);
 
-    // Append the ORDER BY clause to the query to sort the results.
-    // "ORDER BY" tells the database how to arrange the rows it returns.
-    query += ` ORDER BY ${sortOption}`;
+    // Turn page/limit/offset query params into a safe, bounded { limit, offset, page } triple.
+    // Delegated to a pure helper (utils/pagination.ts) so the edge cases (bad input, huge
+    // limits, explicit offset overriding page) can be unit-tested without a database.
+    const { limit, offset, page } = parsePagination(_req.query);
 
-    // If the user specified a limit (how many results to return), add it to the query.
-    if (limit && typeof limit === "string") {
-      // "parseInt" converts the string "5" to the number 5.
-      // We add it to params so it can safely replace $2 (or $1 if no category was given).
-      params.push(parseInt(limit));
-      // Add "LIMIT $X" to the SQL query to cap the number of results.
-      query += ` LIMIT $${params.length}`;
-    }
+    // Build the SELECT query: filters, then sort, then page window (LIMIT/OFFSET).
+    // LIMIT/OFFSET params are appended after the filter params so their placeholder
+    // numbers ($2, $3, ...) come after any WHERE clause placeholders.
+    const selectParams = [...filterParams, limit, offset];
+    const query = `SELECT * FROM jokes${whereClause} ORDER BY ${sortOption} LIMIT $${selectParams.length - 1} OFFSET $${selectParams.length}`;
 
-    // Execute the fully-built SQL query against the database.
-    // "pool.query" sends the query and waits for the result.
-    // "await" pauses execution until the database responds.
-    const result = await pool.query(query, params);
+    // Run a COUNT(*) with the same WHERE clause so the client knows the total number of
+    // matching jokes (needed to render "page 2 of 5" style pagination UI).
+    const countQuery = `SELECT COUNT(*) FROM jokes${whereClause}`;
+
+    // Execute both queries. They're independent, so run them concurrently.
+    const [result, countResult] = await Promise.all([
+      pool.query(query, selectParams),
+      pool.query(countQuery, filterParams),
+    ]);
+
+    const total = parseInt(countResult.rows[0].count, 10);
 
     // Build our standard API response with "success: true" and the joke data.
     // "result.rows" is an array of joke objects returned by the database.
@@ -89,6 +90,14 @@ router.get("/", async (_req: Request, res: Response): Promise<void> => {
       success: true,
       // Pass the array of jokes as the data payload.
       data: result.rows,
+      // Pagination metadata so the client can render "page X of Y" and know if there's more.
+      pagination: {
+        page,
+        limit,
+        offset,
+        total,
+        total_pages: Math.max(Math.ceil(total / limit), 1),
+      },
     };
 
     // Send the response back to the client as JSON.
@@ -359,11 +368,32 @@ router.post("/vote", voteLimiter, async (req: Request, res: Response): Promise<v
     // Extract the validated joke_id and vote_type from the parsed data.
     const { joke_id, vote_type } = parsed.data;
 
-    // Insert a new record into the votes table to log this vote.
+    // Identify the voter by IP address. This is the only identity signal we have —
+    // there's no login/account system — so it's an imperfect dedup (shared IPs/NAT
+    // can share a vote slot, VPNs can dodge it), but it stops the easy case of a
+    // single browser mashing the vote button or refreshing to vote again.
+    const voterIp = req.ip || req.socket.remoteAddress || "unknown";
+
+    // Reject a second vote from the same IP on the same joke before writing anything.
+    const existingVote = await pool.query(
+      "SELECT 1 FROM votes WHERE joke_id = $1 AND voter_ip = $2 LIMIT 1",
+      [joke_id, voterIp]
+    );
+    if (existingVote.rows.length > 0) {
+      res.status(409).json({
+        success: false,
+        error: "You've already voted on this joke.",
+      });
+      return;
+    }
+
+    // Insert a new record into the votes table to log this vote (including who cast it,
+    // so future votes on this joke from the same IP can be blocked above).
     // This keeps a permanent record of every vote cast.
-    await pool.query("INSERT INTO votes (joke_id, vote_type) VALUES ($1, $2)", [
+    await pool.query("INSERT INTO votes (joke_id, vote_type, voter_ip) VALUES ($1, $2, $3)", [
       joke_id,
       vote_type,
+      voterIp,
     ]);
 
     // Determine which column to update: "upvotes" if vote_type is "up", "downvotes" if "down".
@@ -407,7 +437,10 @@ router.post("/vote", voteLimiter, async (req: Request, res: Response): Promise<v
 // ============================================================
 // This route handles DELETE requests to "/api/jokes/42" (or any number).
 // DELETE means "remove this thing from existence."
-router.delete("/:id", async (req: Request, res: Response): Promise<void> => {
+// "requireAdminToken" runs first — anyone without a valid x-admin-token header gets
+// rejected before this handler ever touches the database. Previously ANY visitor
+// could delete ANY joke with no auth check at all.
+router.delete("/:id", requireAdminToken, async (req: Request, res: Response): Promise<void> => {
   try {
     // Delete the joke from the database where the id matches.
     // "RETURNING *" sends back the deleted row so we can confirm what was removed.

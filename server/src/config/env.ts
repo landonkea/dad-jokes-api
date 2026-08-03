@@ -47,5 +47,9 @@ export const config = {
   // The port this Express server listens on. Falls back to 3001 if not specified.
   // 3001 is a common choice for backend servers (3000 is often used for frontend dev servers).
   port: parseInt(process.env.PORT || "3001"),
+  // The shared-secret token required to perform admin-only actions (like deleting a joke).
+  // Not in "required" above — if it's left unset, admin routes fail closed (see adminAuth
+  // middleware) rather than crashing the whole server on startup.
+  adminToken: process.env.ADMIN_TOKEN || undefined,
 // "as const" makes all properties readonly — you can't accidentally change them later.
 } as const;

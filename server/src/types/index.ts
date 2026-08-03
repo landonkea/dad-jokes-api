@@ -76,6 +76,16 @@ export interface ApiResponse<T> {
   // A human-readable error message. This is also optional because if the request was successful,
   // there's no error message to send.
   error?: string;
+  // Pagination metadata — only present on list endpoints (like GET /api/jokes) that support
+  // page/limit/offset query params. Lets the client render "page 2 of 5" style UI and know
+  // whether there are more results to fetch.
+  pagination?: {
+    page: number;
+    limit: number;
+    offset: number;
+    total: number;
+    total_pages: number;
+  };
 }
 
 // This is the shape of the data you get back from the "/api/jokes/stats" endpoint.

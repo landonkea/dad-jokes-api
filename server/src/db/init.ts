@@ -131,6 +131,13 @@ async function initDB(): Promise<void> {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
+      -- "voter_ip" identifies (imperfectly — see routes/jokes.ts) who cast each vote, so we
+      -- can block a second vote from the same IP on the same joke. Added via ALTER TABLE
+      -- (not just in the CREATE TABLE above) so this also runs against databases that already
+      -- had a "votes" table before this column existed — CREATE TABLE IF NOT EXISTS is a no-op
+      -- on a table that's already there, so the column would otherwise never get added.
+      ALTER TABLE votes ADD COLUMN IF NOT EXISTS voter_ip VARCHAR(45);
+
       -- INDEXES are like a table of contents — they help the database find data faster.
       -- "CREATE INDEX IF NOT EXISTS" makes the index but doesn't error if it already exists.
       -- This index speeds up searches by "category".
@@ -139,6 +146,13 @@ async function initDB(): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_jokes_groan_level ON jokes(groan_level);
       -- This index speeds up looking up all votes for a specific joke.
       CREATE INDEX IF NOT EXISTS idx_votes_joke_id ON votes(joke_id);
+      -- This index backs the vote-dedup check in POST /vote (WHERE joke_id = $1 AND voter_ip = $2).
+      CREATE INDEX IF NOT EXISTS idx_votes_joke_ip ON votes(joke_id, voter_ip);
+      -- This is an EXPRESSION index on "upvotes - downvotes" — the exact expression the default
+      -- sort ("ORDER BY upvotes - downvotes DESC", see utils/sortOptions.ts) uses. Without it,
+      -- Postgres can't use a plain index on either column alone to satisfy that ORDER BY and has
+      -- to sort every matching row from scratch on every request.
+      CREATE INDEX IF NOT EXISTS idx_jokes_score ON jokes ((upvotes - downvotes));
     `);
 
     // Let the developer know everything was set up successfully.

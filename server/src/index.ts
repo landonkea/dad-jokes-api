@@ -4,6 +4,13 @@ import express from "express";
 // Import the CORS middleware — CORS stands for "Cross-Origin Resource Sharing."
 // It lets browsers from other websites (like your React frontend) talk to this API.
 import cors from "cors";
+// Import helmet — sets a batch of security-related HTTP headers (like
+// X-Content-Type-Options, X-Frame-Options, and a baseline Content-Security-Policy)
+// with sane defaults, hardening the API against a handful of common attack classes.
+import helmet from "helmet";
+// Import compression — gzips response bodies (our JSON payloads especially) before
+// sending them, so responses are smaller and faster over the wire.
+import compression from "compression";
 // Import dotenv — this library reads your .env file and loads its values into process.env.
 // This is how we keep secrets (like database passwords) out of our source code.
 import dotenv from "dotenv";
@@ -28,10 +35,19 @@ dotenv.config();
 // Think of it as the central nervous system of our API.
 const app = express();
 
+// Register helmet FIRST, before anything else touches the response — it sets security
+// headers (X-Content-Type-Options: nosniff, X-Frame-Options: DENY, a baseline CSP, etc.)
+// on every response this server sends, closing off a handful of common attack classes
+// (clickjacking, MIME-sniffing) with zero configuration.
+app.use(helmet());
 // Register the CORS middleware.
 // This means: for EVERY incoming request, run the CORS check first.
 // It adds special headers to responses that tell the browser "it's okay for other websites to use this API."
 app.use(cors());
+// Register the compression middleware. It gzips response bodies (our JSON payloads)
+// before they go out over the wire, so responses are smaller and load faster — especially
+// noticeable on the jokes list endpoint once pagination lets it return larger pages.
+app.use(compression());
 // Register the JSON body parser middleware.
 // This automatically parses incoming request bodies that are in JSON format.
 // Without this, req.body would be undefined when someone sends JSON data.

@@ -1478,10 +1478,45 @@ body::before {
   transform: translateY(-1px);
 }
 
+/* .vote-btn-sm.voted: Style applied once the user has voted on this joke (list view). */
+.vote-btn-sm.voted {
+  background: rgba(255, 46, 99, 0.25);
+  border-color: var(--neon-pink);
+}
+
+/* Disabled vote buttons (already voted) shouldn't look interactive. */
+.vote-btn-sm:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  transform: none;
+}
+
+.vote-btn-sm:disabled:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.06);
+  transform: none;
+}
+
 /* The author text in the list item. */
 .joke-list-author {
   color: var(--text-muted);
   font-style: italic;
+}
+
+/* Prev/Next pager shown under the joke list once there's more than one page. */
+.joke-list-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 16px;
+}
+
+.joke-list-pager-status {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  white-space: nowrap;
 }
 
 /* =============================================================================
