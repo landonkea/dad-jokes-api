@@ -8,6 +8,8 @@ import { JokeCard } from "./components/JokeCard";
 import { JokeList } from "./components/JokeList";
 // Import the CategoryPicker component — renders category filter buttons so users can narrow jokes by type
 import { CategoryPicker } from "./components/CategoryPicker";
+// Import the SearchBox component — a text search for finding jokes by setup/punchline content
+import { SearchBox } from "./components/SearchBox";
 // Import the JokeSubmitter component — renders a form where users can submit their own dad jokes
 import { JokeSubmitter } from "./components/JokeSubmitter";
 // Import the StatsPanel component — displays statistics and analytics about all the jokes
@@ -42,6 +44,8 @@ const App: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
   // sortBy stores which sort option is selected. undefined means default sorting.
   const [sortBy, setSortBy] = useState<string | undefined>();
+  // searchQuery stores the active search term. undefined means "no search filter".
+  const [searchQuery, setSearchQuery] = useState<string | undefined>();
   // listKey is a counter we increment to force JokeList to remount and re-fetch data.
   const [listKey, setListKey] = useState(0);
 
@@ -108,6 +112,8 @@ const App: React.FC = () => {
         {/* Only render the browse section if the "browse" tab is active */}
         {activeTab === "browse" && (
           <div className="browse-section">
+            {/* Search box — searches setup/punchline text (typo-tolerant) via ?q= */}
+            <SearchBox value={searchQuery} onChange={setSearchQuery} />
             {/* Category filter buttons — pass current selection and setter to update it */}
             <CategoryPicker
               selected={selectedCategory}
@@ -116,22 +122,30 @@ const App: React.FC = () => {
             {/* A row of controls for sorting the joke list */}
             <div className="sort-controls">
               <label>Sort by: </label>
-              {/* Dropdown for choosing how to sort jokes */}
+              {/* Dropdown for choosing how to sort jokes. Disabled while searching — a
+                  search always orders by relevance (see routes/jokes.ts). */}
               <select
                 value={sortBy || ""}
                 onChange={(e) => setSortBy(e.target.value || undefined)}
+                disabled={!!searchQuery}
               >
                 <option value="">Top Voted</option>
                 <option value="groan">Most Groans</option>
                 <option value="oldest">Oldest First</option>
                 <option value="controversial">Most Controversial</option>
               </select>
+              {searchQuery && (
+                <span style={{ fontSize: "0.8rem", fontStyle: "italic" }}>
+                  (sorted by best match while searching)
+                </span>
+              )}
             </div>
             {/* The list of jokes. Key forces React to remount when any filter changes. */}
             <JokeList
-              key={`${selectedCategory}-${sortBy}-${listKey}`}
+              key={`${selectedCategory}-${sortBy}-${searchQuery}-${listKey}`}
               category={selectedCategory}
               sort={sortBy}
+              q={searchQuery}
             />
           </div>
         )}

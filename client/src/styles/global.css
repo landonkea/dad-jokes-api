@@ -168,7 +168,8 @@
 
 [data-theme="light"] .form-group input[type="text"],
 [data-theme="light"] .form-group select,
-[data-theme="light"] .sort-controls select {
+[data-theme="light"] .sort-controls select,
+[data-theme="light"] .search-box-input {
   background: rgba(255, 255, 255, 0.8);
   border-color: rgba(0, 0, 0, 0.1);
   color: #1a1a2e;
@@ -1273,6 +1274,44 @@ body::before {
   outline: none;  /* Remove the default browser focus ring */
   border-color: var(--neon-blue);
   box-shadow: 0 0 0 3px rgba(8, 217, 214, 0.15);
+}
+
+/* =============================================================================
+   SEARCH BOX — Search jokes by setup/punchline text
+   ============================================================================= */
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.search-box-input {
+  flex: 1;
+  min-width: 220px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 2px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.search-box-input:focus {
+  outline: none;
+  border-color: var(--neon-blue);
+  box-shadow: 0 0 0 4px rgba(8, 217, 214, 0.15), 0 0 20px rgba(8, 217, 214, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.search-box-input::placeholder {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.search-box-btn {
+  white-space: nowrap;
 }
 
 /* =============================================================================

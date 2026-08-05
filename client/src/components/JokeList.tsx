@@ -10,10 +10,11 @@ import { getVoteFor, markVoted } from "../utils/votedJokes";
 interface JokeListProps {
   category?: string;  // Optional category filter — if set, only show jokes in this category
   sort?: string;      // Optional sort order — if set, sort jokes by this criteria
+  q?: string;          // Optional search term — if set, only show jokes matching setup/punchline
 }
 
 // The JokeList component displays a scrollable list of jokes that can be filtered and sorted.
-export const JokeList: React.FC<JokeListProps> = ({ category, sort }) => {
+export const JokeList: React.FC<JokeListProps> = ({ category, sort, q }) => {
   // jokes stores the array of joke objects fetched from the server. Starts empty.
   const [jokes, setJokes] = useState<Joke[]>([]);
   // loading is true while the initial fetch is in progress, so we can show a spinner.
@@ -32,13 +33,13 @@ export const JokeList: React.FC<JokeListProps> = ({ category, sort }) => {
   // on (and how). Seeded from localStorage so it survives page reloads, not just re-renders.
   const [votedIds, setVotedIds] = useState<Record<number, "up" | "down">>({});
 
-  // Whenever the category or sort filter changes, jump back to page 1 — staying on, say,
-  // page 3 of a filter that now has only 1 page of results would show an empty list.
+  // Whenever the category, sort, or search filter changes, jump back to page 1 — staying
+  // on, say, page 3 of a filter that now has only 1 page of results would show an empty list.
   useEffect(() => {
     setPage(1);
-  }, [category, sort]);
+  }, [category, sort, q]);
 
-  // useEffect runs every time the category, sort, or page changes.
+  // useEffect runs every time the category, sort, search term, or page changes.
   // It fetches the matching page of jokes from the server.
   useEffect(() => {
     // "cancelled" is a flag to prevent updating state if the component unmounts or the effect re-runs
@@ -46,8 +47,8 @@ export const JokeList: React.FC<JokeListProps> = ({ category, sort }) => {
     let cancelled = false;
     // Show the loading spinner while the fetch is in progress
     setLoading(true);
-    // Request 20 jokes per page, filtered/sorted per the current props.
-    fetchJokesPage({ category, sort, page, limit: 20 })
+    // Request 20 jokes per page, filtered/sorted/searched per the current props.
+    fetchJokesPage({ category, sort, q, page, limit: 20 })
       .then(({ jokes: data, pagination: meta }) => {
         // Only update state if this effect hasn't been cancelled (component still mounted)
         if (!cancelled) {
@@ -76,7 +77,7 @@ export const JokeList: React.FC<JokeListProps> = ({ category, sort }) => {
     return () => {
       cancelled = true;
     };
-  }, [category, sort, page]); // Re-run this effect whenever category, sort, or page changes
+  }, [category, sort, q, page]); // Re-run this effect whenever category, sort, search term, or page changes
 
   // Handle when a user clicks the upvote or downvote button on a joke in the list.
   const handleVote = async (jokeId: number, voteType: "up" | "down") => {
@@ -126,7 +127,9 @@ export const JokeList: React.FC<JokeListProps> = ({ category, sort }) => {
       {/* Show an empty state message if no jokes match the current filters */}
       {jokes.length === 0 && (
         <p className="joke-list-empty">
-          No jokes found. Even the database is speechless. 🤐
+          {q
+            ? `No jokes match "${q}". Even the database is speechless. 🤐`
+            : "No jokes found. Even the database is speechless. 🤐"}
         </p>
       )}
       {/* Loop through each joke and render a clickable accordion item */}

@@ -36,7 +36,7 @@ router.get("/", async (_req: Request, res: Response): Promise<void> => {
     // "/api/jokes?category=puns&sort=groan&page=2&limit=5", then:
     //   category = "puns", sort = "groan", page = "2", limit = "5"
     // Query parameters come after the "?" in a URL and are key=value pairs.
-    const { category, sort } = _req.query;
+    const { category, sort, q } = _req.query;
 
     // "params" is an array of values that will replace $1, $2, etc. in the query.
     // We start with an empty array because we haven't added any filters yet.
@@ -59,10 +59,31 @@ router.get("/", async (_req: Request, res: Response): Promise<void> => {
       whereClause += ` AND category = $${filterParams.length}`;
     }
 
+    // Full-text/fuzzy search via ?q=. Relies on the pg_trgm extension and the GIN trigram
+    // indexes on setup/punchline (see db/schema.ts). Two things happen with the search term:
+    //   1. It's added to the WHERE clause as an OR of substring matching (ILIKE '%term%',
+    //      so "widget" still matches a joke that only contains "gadget widgets") and
+    //      trigram similarity() above a low threshold (so a typo like "wigdet" still matches).
+    //   2. relevanceOrder is set so the SELECT below sorts best-match-first instead of the
+    //      usual score/groan/date ordering — when you're searching, "closest match" is a
+    //      more useful order than "most upvoted".
+    // Scoped to the same "status = 'approved'" WHERE clause as everything else in this
+    // route — search must never surface pending/rejected submissions.
+    let relevanceOrder: string | null = null;
+    if (typeof q === "string" && q.trim() !== "") {
+      const searchTerm = q.trim();
+      filterParams.push(searchTerm);
+      const qParam = `$${filterParams.length}`;
+      whereClause += ` AND (setup ILIKE '%' || ${qParam} || '%' OR punchline ILIKE '%' || ${qParam} || '%' OR similarity(setup, ${qParam}) > 0.2 OR similarity(punchline, ${qParam}) > 0.2)`;
+      relevanceOrder = `GREATEST(similarity(setup, ${qParam}), similarity(punchline, ${qParam})) DESC`;
+    }
+
     // Determine how to sort the results based on the "sort" query parameter.
     // Delegated to a pure helper (utils/sortOptions.ts) so the ordering logic — including
     // the "controversial" scoring math — can be unit-tested without a database.
-    const sortOption = getSortClause(typeof sort === "string" ? sort : undefined);
+    // A search (?q=) always takes ordering priority over ?sort= — "best match" is what
+    // someone searching wants to see first, not "most upvoted" or "newest".
+    const sortOption = relevanceOrder || getSortClause(typeof sort === "string" ? sort : undefined);
 
     // Turn page/limit/offset query params into a safe, bounded { limit, offset, page } triple.
     // Delegated to a pure helper (utils/pagination.ts) so the edge cases (bad input, huge

@@ -200,6 +200,121 @@ describe("Jokes API routes (integration)", () => {
   });
 
   // ==========================================================
+  // GET /api/jokes?q= — trigram/fuzzy search (see db/schema.ts pg_trgm indexes)
+  // ==========================================================
+  describe("GET /api/jokes?q= (search)", () => {
+    it("matches an exact substring in the setup", async () => {
+      const scarecrow = await insertJoke({
+        setup: "Why did the scarecrow win an award?",
+        punchline: "Because he was outstanding in his field.",
+      });
+      await insertJoke({ setup: "Why don't eggs tell jokes?", punchline: "They'd crack each other up." });
+
+      const res = await request(app).get("/api/jokes?q=scarecrow");
+      expect(res.status).toBe(200);
+      expect(res.body.data.map((j: { id: number }) => j.id)).toEqual([scarecrow]);
+    });
+
+    it("matches an exact substring in the punchline", async () => {
+      const eggJoke = await insertJoke({
+        setup: "Why don't eggs tell jokes?",
+        punchline: "They'd crack each other up.",
+      });
+      await insertJoke({ setup: "Why did the scarecrow win an award?", punchline: "Because he was outstanding in his field." });
+
+      const res = await request(app).get("/api/jokes?q=crack");
+      expect(res.status).toBe(200);
+      expect(res.body.data.map((j: { id: number }) => j.id)).toEqual([eggJoke]);
+    });
+
+    it("is typo-tolerant via trigram similarity", async () => {
+      const scarecrow = await insertJoke({
+        setup: "Why did the scarecrow win an award?",
+        punchline: "Because he was outstanding in his field.",
+      });
+      await insertJoke({ setup: "Why don't eggs tell jokes?", punchline: "They'd crack each other up." });
+
+      // "scarcrow" (missing an "e") is a one-letter typo of "scarecrow" — trigram
+      // similarity should still surface it even though it's not an exact substring.
+      const res = await request(app).get("/api/jokes?q=scarcrow");
+      expect(res.status).toBe(200);
+      expect(res.body.data.map((j: { id: number }) => j.id)).toContain(scarecrow);
+    });
+
+    it("returns an empty list (not an error) when nothing matches", async () => {
+      await insertJoke({ setup: "Why did the scarecrow win an award?" });
+      const res = await request(app).get("/api/jokes?q=xyznonsensequery");
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toEqual([]);
+      expect(res.body.pagination.total).toBe(0);
+    });
+
+    it("only searches approved jokes, never pending or rejected ones", async () => {
+      await insertJoke({ setup: "Pending scarecrow joke", status: "pending" });
+      await insertJoke({ setup: "Rejected scarecrow joke", status: "rejected" });
+      const approved = await insertJoke({ setup: "Approved scarecrow joke", status: "approved" });
+
+      const res = await request(app).get("/api/jokes?q=scarecrow");
+      expect(res.status).toBe(200);
+      expect(res.body.data.map((j: { id: number }) => j.id)).toEqual([approved]);
+      expect(res.body.pagination.total).toBe(1);
+    });
+
+    it("combines with the category filter", async () => {
+      const matching = await insertJoke({ setup: "Scarecrow pun joke", category: "puns" });
+      await insertJoke({ setup: "Scarecrow animal joke", category: "animals" });
+
+      const res = await request(app).get("/api/jokes?q=scarecrow&category=puns");
+      expect(res.status).toBe(200);
+      expect(res.body.data.map((j: { id: number }) => j.id)).toEqual([matching]);
+    });
+
+    it("orders results by relevance, best match first", async () => {
+      // "cat" is an exact, standalone-word match in the second joke's setup, and only a
+      // substring of "category" in the first — the exact word match should score higher
+      // and come first in the results.
+      const weakMatch = await insertJoke({ setup: "Why did the category theory joke fail?", punchline: "Too abstract." });
+      const strongMatch = await insertJoke({ setup: "Why did the cat sit on the computer?", punchline: "To keep an eye on the mouse." });
+
+      const res = await request(app).get("/api/jokes?q=cat");
+      const ids = res.body.data.map((j: { id: number }) => j.id);
+      expect(ids).toContain(weakMatch);
+      expect(ids).toContain(strongMatch);
+      expect(ids.indexOf(strongMatch)).toBeLessThan(ids.indexOf(weakMatch));
+    });
+
+    it("paginates search results and keeps the same total across pages", async () => {
+      for (let i = 0; i < 3; i++) {
+        await insertJoke({ setup: `Scarecrow joke number ${i}`, punchline: "A punchline." });
+      }
+      await insertJoke({ setup: "Unrelated joke", punchline: "Nothing to do with the query." });
+
+      const page1 = await request(app).get("/api/jokes?q=scarecrow&limit=2&page=1");
+      expect(page1.body.data).toHaveLength(2);
+      expect(page1.body.pagination).toMatchObject({ page: 1, limit: 2, total: 3, total_pages: 2 });
+
+      const page2 = await request(app).get("/api/jokes?q=scarecrow&limit=2&page=2");
+      expect(page2.body.data).toHaveLength(1);
+      expect(page2.body.pagination).toMatchObject({ page: 2, limit: 2, total: 3, total_pages: 2 });
+
+      // No overlap between the two pages.
+      const page1Ids = page1.body.data.map((j: { id: number }) => j.id);
+      const page2Ids = page2.body.data.map((j: { id: number }) => j.id);
+      expect(page1Ids.some((id: number) => page2Ids.includes(id))).toBe(false);
+    });
+
+    it("treats a blank/whitespace-only q as no search filter", async () => {
+      await insertJoke({ setup: "Joke A" });
+      await insertJoke({ setup: "Joke B" });
+
+      const res = await request(app).get("/api/jokes?q=%20%20");
+      expect(res.status).toBe(200);
+      expect(res.body.data).toHaveLength(2);
+    });
+  });
+
+  // ==========================================================
   // GET /api/jokes/random
   // ==========================================================
   describe("GET /api/jokes/random", () => {

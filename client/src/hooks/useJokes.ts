@@ -85,12 +85,14 @@ export async function fetchJokes(params?: {
 export async function fetchJokesPage(params?: {
   category?: string;  // Optional: only return jokes in this category
   sort?: string;      // Optional: how to order the results (e.g., "groan", "oldest")
+  q?: string;          // Optional: fuzzy/substring search term (matches setup or punchline)
   page?: number;       // Optional: 1-indexed page number
   limit?: number;      // Optional: how many jokes per page (server caps this at 100)
 }): Promise<JokesPage> {
   const searchParams = new URLSearchParams();
   if (params?.category) searchParams.set("category", params.category);
   if (params?.sort) searchParams.set("sort", params.sort);
+  if (params?.q) searchParams.set("q", params.q);
   if (params?.page) searchParams.set("page", params.page.toString());
   if (params?.limit) searchParams.set("limit", params.limit.toString());
   const res = await fetch(`${API_BASE}/jokes?${searchParams.toString()}`);
