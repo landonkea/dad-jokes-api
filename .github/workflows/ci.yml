@@ -60,11 +60,24 @@ jobs:
         # These health check options tell GitHub Actions to WAIT until
         # PostgreSQL is fully ready before running our test steps.
         # Without this, tests might try to connect before the DB is up.
+        #
+        # NOTE: this must be a plain space-separated flag string, not one
+        # with inline "# comment" text after each flag -- inside a YAML
+        # folded block scalar (">-"), "#" is NOT a comment marker, it's
+        # literal text. Putting "# Command to check if PG is ready" etc.
+        # here previously corrupted the actual `docker create` command
+        # with that comment text mixed into its arguments ("invalid
+        # reference format"), silently breaking every CI run that needed
+        # the Postgres service container.
+        #   --health-cmd pg_isready:      command to check if PG is ready
+        #   --health-interval 10s:        check every 10 seconds
+        #   --health-timeout 5s:          fail check after 5 seconds
+        #   --health-retries 5:           try 5 times before giving up
         options: >-
-          --health-cmd pg_isready          # Command to check if PG is ready
-          --health-interval 10s            # Check every 10 seconds
-          --health-timeout 5s              # Fail check after 5 seconds
-          --health-retries 5               # Try 5 times before giving up
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
         # Map PostgreSQL's port inside the container to port 5432 on the
         # GitHub Actions VM so our tests can connect to it via localhost.
