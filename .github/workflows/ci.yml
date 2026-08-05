@@ -92,13 +92,20 @@ jobs:
       # "actions/checkout@v4" is the official GitHub checkout action.
       - uses: actions/checkout@v4
 
-      # Step 2: Install and set up Node.js 20 on the VM.
+      # Step 2: Install and set up Node.js on the VM.
       # "actions/setup-node@v4" is the official action that installs Node.js
       # and adds it to the system PATH so we can use "node" and "npm" commands.
-      - name: Use Node.js 20
+      #
+      # Bumped from 20 to 22 (current LTS): jsdom 30's CacheStorage
+      # implementation calls a Node internal webidl utility
+      # (webidl.util.markAsUncloneable) that Node 20 doesn't have,
+      # which crashed every client-side vitest run with "TypeError:
+      # webidl.util.markAsUncloneable is not a function" -- unrelated
+      # to any test code, purely a Node-version-vs-jsdom-version gap.
+      - name: Use Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: 20  # Specify exactly Node.js version 20
+          node-version: 22
 
       # Step 3: Install root-level dependencies (like "concurrently").
       - name: Install root dependencies
